@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#155eef">
+<title>Simulado DATAPREV 2024</title>
+<style>
+:root{--bg:#eef3fb;--card:#fff;--text:#172033;--muted:#667085;--p:#155eef;--pd:#0b4fd1;--line:#dfe5ef;--ok:#067647;--bad:#b42318;--warn:#b54708}
+*{box-sizing:border-box} body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:linear-gradient(135deg,#edf4ff,#f8fafc 52%,#edfdf7);color:var(--text)}
+.wrap{max-width:860px;margin:auto;padding:16px} header{padding:10px 2px 18px} h1{margin:0;font-size:clamp(1.45rem,5vw,2.15rem)} .sub{color:var(--muted);margin-top:6px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:22px;box-shadow:0 14px 40px rgba(25,42,70,.12);padding:22px;margin-bottom:18px}
+.home{min-height:72vh;display:flex;flex-direction:column;justify-content:center;text-align:center} .home h2{font-size:clamp(1.8rem,7vw,2.7rem);margin:0 0 12px} .home p{color:var(--muted);line-height:1.55}
+.btn{border:0;border-radius:14px;padding:14px 18px;font-weight:800;font-size:1rem;cursor:pointer;background:var(--p);color:#fff} .btn:active{transform:scale(.98)} .btn.secondary{background:#e9eef6;color:#26334d} .btn.danger{background:#fff0ee;color:var(--bad)} .btn.ok{background:var(--ok)}
+.actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:18px} .hidden{display:none!important}
+.top{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px} .count{font-weight:900;color:var(--p)} .saved{font-size:.83rem;color:var(--muted)}
+.progress{height:9px;background:#e8edf5;border-radius:99px;overflow:hidden;margin-bottom:18px} .bar{height:100%;background:var(--p);width:0;transition:.2s}
+.stem{white-space:pre-wrap;line-height:1.62;font-size:1.05rem;margin-bottom:17px}
+.opts{display:grid;gap:10px} .opt{width:100%;text-align:left;border:1.5px solid var(--line);border-radius:14px;padding:14px;background:#fff;display:flex;gap:12px;line-height:1.45;cursor:pointer;color:var(--text)}
+.opt.selected{border-color:var(--p);background:#eaf1ff;box-shadow:0 0 0 3px rgba(21,94,239,.08)} .letter{flex:0 0 31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#edf1f7;font-weight:900} .opt.selected .letter{background:var(--p);color:#fff}
+.nav{display:flex;justify-content:space-between;gap:10px;margin-top:20px} .nav .btn{min-width:125px} .grid{display:grid;grid-template-columns:repeat(10,1fr);gap:7px;margin-top:18px}
+.qjump{border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 2px;font-weight:700;cursor:pointer} .qjump.done{background:#eaf1ff;color:var(--p);border-color:#b9ccff} .qjump.current{outline:3px solid rgba(21,94,239,.18)}
+.result{text-align:center} .score{font-size:3rem;font-weight:950;color:var(--p);margin:10px 0} .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0} .stat{border:1px solid var(--line);border-radius:14px;padding:14px} .stat strong{display:block;font-size:1.55rem}
+.review{display:grid;gap:10px;text-align:left;margin-top:18px} .review-item{border:1px solid var(--line);border-radius:13px;padding:13px} .correct{border-left:6px solid var(--ok)} .wrong{border-left:6px solid var(--bad)} .blank{border-left:6px solid var(--warn)} .annulled{border-left:6px solid #7f56d9}
+.note{font-size:.88rem;color:var(--muted);line-height:1.5;margin-top:14px}
+@media(max-width:580px){.wrap{padding:10px}.card{padding:17px;border-radius:18px}.nav{flex-direction:column}.nav .btn{width:100%}.grid{grid-template-columns:repeat(7,1fr)}.stats{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><h1>Simulado DATAPREV 2024</h1><div class="sub">ATI · Desenvolvimento de Software · Tipo 1 Branca · 70 questões</div></header>
+<section id="home" class="card home">
+<h2>Seu simulado está pronto 🎯</h2>
+<p id="homeText">As respostas e a última questão são salvas automaticamente neste navegador.</p>
+<div class="actions"><button id="startBtn" class="btn">Iniciar simulado</button><button id="continueBtn" class="btn ok hidden">Continuar de onde parei</button><button id="resetBtnHome" class="btn danger hidden">Recomeçar</button></div>
+<div class="note">O histórico fica salvo no aparelho e navegador usados. Ao limpar os dados do Safari, o progresso também será apagado.</div>
+</section>
+<section id="quiz" class="card hidden">
+<div class="top"><span id="counter" class="count"></span><span id="saveStatus" class="saved">Salvo automaticamente</span></div><div class="progress"><div id="bar" class="bar"></div></div><div id="stem" class="stem"></div><div id="options" class="opts"></div>
+<div class="nav"><button id="prevBtn" class="btn secondary">← Anterior</button><button id="nextBtn" class="btn">Próxima →</button></div><div id="grid" class="grid"></div>
+<div class="actions"><button id="finishBtn" class="btn ok">Concluir simulado</button><button id="homeBtn" class="btn secondary">Salvar e sair</button></div>
+</section>
+<section id="result" class="card result hidden">
+<h2>Resultado final</h2><div id="score" class="score"></div><div id="percent"></div>
+<div class="stats"><div class="stat"><strong id="hits">0</strong>acertos</div><div class="stat"><strong id="misses">0</strong>erros</div><div class="stat"><strong id="blanks">0</strong>em branco</div></div>
+<div class="note">Questões anuladas contam como acerto, conforme o gabarito definitivo.</div>
+<div class="actions"><button id="reviewBtn" class="btn">Revisar respostas</button><button id="newBtn" class="btn danger">Fazer novamente</button></div><div id="review" class="review hidden"></div>
+</section>
+</div>
+<script src="questions-1.js"></script><script src="questions-2.js"></script><script src="questions-3.js"></script><script src="questions-4.js"></script><script src="questions-5.js"></script><script src="questions-6.js"></script><script src="questions-7.js"></script>
+<script>
+const QUESTIONS=[...Q1,...Q2,...Q3,...Q4,...Q5,...Q6,...Q7];
+const KEY=["E","D","C","C","A","D","C","D","A","D","E","A","*","B","E","C","D","E","D","A","B","E","B","C","C","B","B","D","C","A","B","A","D","C","E","D","A","B","E","C","A","C","D","E","A","B","A","B","C","B","B","D","A","B","B","C","E","B","D","D","C","B","A","C","C","C","D","B","B","B"];
+const STORAGE="simulado_dataprev_2024_v1";let state={current:0,answers:{},started:false,finished:false};const $=id=>document.getElementById(id);
+function load(){try{const saved=JSON.parse(localStorage.getItem(STORAGE));if(saved)state={...state,...saved}}catch(e){}}
+function save(){localStorage.setItem(STORAGE,JSON.stringify(state));$("saveStatus").textContent="Salvo às "+new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}
+function show(id){["home","quiz","result"].forEach(x=>$(x).classList.toggle("hidden",x!==id));window.scrollTo({top:0,behavior:"smooth"})}
+function home(){const has=state.started&&Object.keys(state.answers).length>0&&!state.finished;$("continueBtn").classList.toggle("hidden",!has);$("resetBtnHome").classList.toggle("hidden",!has);$("startBtn").classList.toggle("hidden",has);$("homeText").textContent=has?`Você respondeu ${Object.keys(state.answers).length} de 70 questões. Seu progresso está salvo.`:"As respostas e a última questão são salvas automaticamente neste navegador.";show("home")}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
+function render(){state.started=true;state.finished=false;const q=QUESTIONS[state.current];$("counter").textContent=`Questão ${state.current+1} de ${QUESTIONS.length}`;$("bar").style.width=`${((state.current+1)/QUESTIONS.length)*100}%`;$("stem").textContent=q.stem;$("options").innerHTML="";q.options.forEach(([letter,text])=>{const b=document.createElement("button");b.className="opt"+(state.answers[q.n]===letter?" selected":"");b.innerHTML=`<span class="letter">${letter}</span><span>${escapeHtml(text)}</span>`;b.onclick=()=>{state.answers[q.n]=letter;save();render()};$("options").appendChild(b)});$("prevBtn").disabled=state.current===0;$("nextBtn").textContent=state.current===QUESTIONS.length-1?"Ir para conclusão":"Próxima →";renderGrid();save();show("quiz")}
+function renderGrid(){$("grid").innerHTML="";QUESTIONS.forEach((q,i)=>{const b=document.createElement("button");b.className="qjump"+(state.answers[q.n]?" done":"")+(i===state.current?" current":"");b.textContent=q.n;b.onclick=()=>{state.current=i;render()};$("grid").appendChild(b)})}
+function finish(){const answered=Object.keys(state.answers).length;if(answered<QUESTIONS.length&&!confirm(`Você respondeu ${answered} de 70 questões. Deseja concluir mesmo assim?`))return;let hits=0,misses=0,blanks=0;QUESTIONS.forEach((q,i)=>{const a=state.answers[q.n],k=KEY[i];if(k==="*")hits++;else if(!a)blanks++;else if(a===k)hits++;else misses++});state.finished=true;save();$("hits").textContent=hits;$("misses").textContent=misses;$("blanks").textContent=blanks;$("score").textContent=`${hits} / 70`;$("percent").textContent=`${(hits/70*100).toFixed(1).replace(".",",")}% de aproveitamento`;buildReview();show("result")}
+function buildReview(){const r=$("review");r.innerHTML="";r.classList.add("hidden");QUESTIONS.forEach((q,i)=>{const a=state.answers[q.n]||"Em branco",k=KEY[i];const cls=k==="*"?"annulled":a===k?"correct":a==="Em branco"?"blank":"wrong";const title=k==="*"?"Questão anulada":a===k?"Correta":a==="Em branco"?"Não respondida":"Incorreta";const div=document.createElement("div");div.className="review-item "+cls;div.innerHTML=`<strong>Questão ${q.n} · ${title}</strong><br>Sua resposta: ${a}<br>Gabarito: ${k==="*"?"Anulada":k}`;r.appendChild(div)})}
+function reset(){if(!confirm("Apagar todo o progresso e começar novamente?"))return;localStorage.removeItem(STORAGE);state={current:0,answers:{},started:false,finished:false};home()}
+$("startBtn").onclick=()=>{state={current:0,answers:{},started:true,finished:false};render()};$("continueBtn").onclick=render;$("resetBtnHome").onclick=reset;$("prevBtn").onclick=()=>{if(state.current>0){state.current--;render()}};$("nextBtn").onclick=()=>{if(state.current<QUESTIONS.length-1){state.current++;render()}else finish()};$("finishBtn").onclick=finish;$("homeBtn").onclick=()=>{save();home()};$("reviewBtn").onclick=()=>$("review").classList.toggle("hidden");$("newBtn").onclick=reset;load();if(state.finished){finish()}else home();
+</script></body></html>
