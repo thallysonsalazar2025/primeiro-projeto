@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -6,7 +7,7 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const [attempts, correct, recentLogins, subjects] = await Promise.all([
+  const [attempts, correct, recentLogins, subjects, recentSessions] = await Promise.all([
     prisma.questionAttempt.count({ where: { userId: user.id } }),
     prisma.questionAttempt.count({ where: { userId: user.id, correct: true } }),
     prisma.loginHistory.findMany({ where: { userId: user.id }, orderBy: { loggedAt: 'desc' }, take: 5 }),
@@ -14,6 +15,19 @@ export default async function DashboardPage() {
       by: ['questionId'],
       where: { userId: user.id },
       _count: { _all: true },
+    }),
+    prisma.studySession.findMany({
+      where: { userId: user.id },
+      orderBy: { startedAt: 'desc' },
+      take: 5,
+      select: {
+        id: true,
+        positionName: true,
+        startedAt: true,
+        finishedAt: true,
+        questionIds: true,
+        _count: { select: { attempts: true } },
+      },
     }),
   ]);
 
@@ -35,6 +49,41 @@ export default async function DashboardPage() {
           <Card title="Taxa de acerto" value={`${accuracy}%`} hint="Todas as sessões" />
           <Card title="Acertos" value={String(correct)} hint="Questões corretas" />
           <Card title="Questões únicas" value={String(subjects.length)} hint="Cobertura efetiva" />
+        </section>
+
+        <section style={panelStyle}>
+          <h2 style={{ marginTop: 0 }}>Sessões recentes</h2>
+          {recentSessions.length === 0 ? (
+            <p style={{ color: '#64748b' }}>Nenhum simulado iniciado ainda.</p>
+          ) : (
+            <div style={{ display: 'grid', gap: 12 }}>
+              {recentSessions.map((session) => {
+                const resumable = session.finishedAt === null;
+                return (
+                  <article key={session.id} style={{ border: '1px solid #e2e8f0', borderRadius: 14, padding: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <div>
+                        <strong>{session.positionName ?? 'Simulado personalizado'}</strong>
+                        <p style={{ margin: '6px 0 0', color: '#64748b' }}>
+                          {session._count.attempts}/{session.questionIds.length} respostas · iniciado em {session.startedAt.toLocaleString('pt-BR')}
+                        </p>
+                      </div>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <span style={{ color: resumable ? '#047857' : '#64748b', fontWeight: 700 }}>
+                          {resumable ? 'Em andamento' : 'Finalizado'}
+                        </span>
+                        {resumable && (
+                          <Link href={`/simulations/${session.id}`} style={resumeStyle}>
+                            Retomar prova
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         <section style={panelStyle}>
@@ -76,3 +125,4 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 const panelStyle = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 20, padding: 22, marginTop: 18, boxShadow: '0 8px 30px rgba(15,23,42,.04)' };
 const filterStyle = { textAlign: 'left' as const, padding: 14, border: '1px solid #cbd5e1', borderRadius: 12, background: '#fff', color: '#334155', cursor: 'pointer' };
+const resumeStyle = { padding: '10px 14px', borderRadius: 10, background: '#4f46e5', color: '#fff', fontWeight: 700, textDecoration: 'none' };
