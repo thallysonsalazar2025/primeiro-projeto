@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PrismaClient, QuestionStatus, SourceType } from "@prisma/client";
+import { dataprevFingerprint, type DataprevLegacyQuestion } from "../src/lib/dataprev-fingerprint.ts";
 
 const prisma = new PrismaClient();
 const LEGACY_ROOT = path.resolve(process.cwd(), "..");
@@ -17,13 +17,7 @@ const SUBJECTS = [
   { from: 31, to: 70, name: "Conhecimentos Específicos" },
 ] as const;
 
-type LegacyQuestion = { n: number; stem: string; options: [string, string][] };
-
-function fingerprint(question: LegacyQuestion) {
-  return createHash("sha256")
-    .update(JSON.stringify({ n: question.n, stem: question.stem.trim(), options: question.options }))
-    .digest("hex");
-}
+type LegacyQuestion = DataprevLegacyQuestion;
 
 async function loadLegacyQuestions() {
   const questions: LegacyQuestion[] = [];
@@ -111,7 +105,7 @@ async function main() {
   for (const question of questions) {
     const answer = key[question.n - 1];
     const subject = subjectFor(question.n);
-    const contentFingerprint = fingerprint(question);
+    const contentFingerprint = dataprevFingerprint(question);
     const status = answer === "*" ? QuestionStatus.ANNULLED : QuestionStatus.ACTIVE;
 
     const saved = await prisma.question.upsert({
