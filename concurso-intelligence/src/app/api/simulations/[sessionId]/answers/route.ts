@@ -31,7 +31,7 @@ export async function POST(
 
   const session = await prisma.studySession.findFirst({
     where: { id: sessionId, userId: user.id },
-    select: { id: true, finishedAt: true },
+    select: { id: true, finishedAt: true, questionIds: true },
   });
   if (!session) {
     return NextResponse.json({ error: "Simulation session not found" }, { status: 404 });
@@ -41,6 +41,10 @@ export async function POST(
   }
 
   const { questionId, selected, elapsedMs, confidence } = parsed.data;
+  if (!session.questionIds.includes(questionId)) {
+    return NextResponse.json({ error: "Question does not belong to this simulation" }, { status: 400 });
+  }
+
   const question = await prisma.question.findUnique({
     where: { id: questionId },
     select: {
