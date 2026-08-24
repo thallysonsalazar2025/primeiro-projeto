@@ -9,6 +9,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "quality": "npm run typecheck && npx prisma validate",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:import:dataprev": "node --experimental-strip-types scripts/import-dataprev.ts"
