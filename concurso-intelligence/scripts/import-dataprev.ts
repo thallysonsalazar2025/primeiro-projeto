@@ -64,10 +64,10 @@ async function main() {
     create: BOARD,
   });
 
-  const organization = await prisma.organization.create({
+  const organization = await prisma.organization.findFirst({
+    where: { acronym: "DATAPREV" },
+  }) ?? await prisma.organization.create({
     data: { name: "Empresa de Tecnologia e Informações da Previdência - DATAPREV", acronym: "DATAPREV" },
-  }).catch(async () => {
-    return prisma.organization.findFirstOrThrow({ where: { acronym: "DATAPREV" } });
   });
 
   const contest = await prisma.contest.upsert({
@@ -135,10 +135,11 @@ async function main() {
     });
 
     for (const [label, text] of question.options) {
+      const isCorrect = answer !== "*" && answer === label;
       await prisma.questionChoice.upsert({
         where: { questionId_label: { questionId: saved.id, label } },
-        update: { text, isCorrect: answer === "*" || answer === label },
-        create: { questionId: saved.id, label, text, isCorrect: answer === "*" || answer === label },
+        update: { text, isCorrect },
+        create: { questionId: saved.id, label, text, isCorrect },
       });
     }
 
