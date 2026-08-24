@@ -91,6 +91,7 @@ export async function POST(request: Request) {
       userId: user.id,
       boardId: boardId ?? questions[0]?.exam.board.id ?? null,
       positionName,
+      questionIds: questions.map((question) => question.id),
     },
     select: { id: true, startedAt: true },
   });
