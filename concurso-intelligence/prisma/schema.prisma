@@ -49,14 +49,14 @@ model Organization {
 }
 
 model Contest {
-  id             String              @id @default(cuid())
+  id             String               @id @default(cuid())
   name           String
   year           Int
   organizationId String?
-  organization   Organization?       @relation(fields: [organizationId], references: [id])
+  organization   Organization?        @relation(fields: [organizationId], references: [id])
   editalUrl      String?
   examDate       DateTime?
-  status         ContestStatus       @default(PLANNED)
+  status         ContestStatus        @default(PLANNED)
   positions      ContestPosition[]
   exams          Exam[]
   rankingRows    OfficialRankingRow[]
@@ -66,13 +66,13 @@ model Contest {
 }
 
 model ContestPosition {
-  id        String   @id @default(cuid())
-  contestId String
-  contest   Contest  @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  name      String
-  area      String?
-  vacancies Int?
-  exams     Exam[]
+  id          String               @id @default(cuid())
+  contestId   String
+  contest     Contest              @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  name        String
+  area        String?
+  vacancies   Int?
+  exams       Exam[]
   rankingRows OfficialRankingRow[]
 
   @@unique([contestId, name, area])
@@ -121,25 +121,25 @@ model Topic {
 }
 
 model Question {
-  id                 String            @id @default(cuid())
+  id                 String               @id @default(cuid())
   examId             String
-  exam               Exam              @relation(fields: [examId], references: [id], onDelete: Cascade)
+  exam               Exam                 @relation(fields: [examId], references: [id], onDelete: Cascade)
   boardId            String
-  board              ExamBoard         @relation(fields: [boardId], references: [id])
+  board              ExamBoard            @relation(fields: [boardId], references: [id])
   subjectId          String?
-  subject            Subject?          @relation(fields: [subjectId], references: [id])
+  subject            Subject?             @relation(fields: [subjectId], references: [id])
   topicId            String?
-  topic              Topic?            @relation(fields: [topicId], references: [id])
+  topic              Topic?               @relation(fields: [topicId], references: [id])
   number             Int?
   statement          String
   explanation        String?
-  questionType       QuestionType      @default(MULTIPLE_CHOICE)
-  status             QuestionStatus    @default(ACTIVE)
+  questionType       QuestionType         @default(MULTIPLE_CHOICE)
+  status             QuestionStatus       @default(ACTIVE)
   sourceUrl          String?
   sourcePage         Int?
   sourceLabel        String?
-  contentFingerprint String            @unique
-  firstSeenAt        DateTime          @default(now())
+  contentFingerprint String               @unique
+  firstSeenAt        DateTime             @default(now())
   lastVerifiedAt     DateTime?
   choices            QuestionChoice[]
   attempts           QuestionAttempt[]
@@ -175,47 +175,48 @@ model QuestionProvenance {
 }
 
 model StudySession {
-  id           String           @id @default(cuid())
+  id           String            @id @default(cuid())
   userId       String
-  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   boardId      String?
   positionName String?
-  startedAt    DateTime         @default(now())
+  questionIds  String[]          @default([])
+  startedAt    DateTime          @default(now())
   finishedAt   DateTime?
   attempts     QuestionAttempt[]
 }
 
 model QuestionAttempt {
-  id           String       @id @default(cuid())
-  userId       String
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sessionId    String?
-  session      StudySession? @relation(fields: [sessionId], references: [id])
-  questionId   String
-  question     Question     @relation(fields: [questionId], references: [id])
-  selected     String?
-  correct      Boolean
-  answeredAt   DateTime     @default(now())
-  elapsedMs    Int?
-  confidence   Int?
+  id         String        @id @default(cuid())
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId  String?
+  session    StudySession? @relation(fields: [sessionId], references: [id])
+  questionId String
+  question   Question      @relation(fields: [questionId], references: [id])
+  selected   String?
+  correct    Boolean
+  answeredAt DateTime      @default(now())
+  elapsedMs  Int?
+  confidence Int?
 
   @@index([userId, answeredAt])
   @@index([userId, questionId])
 }
 
 model OfficialRankingRow {
-  id          String           @id @default(cuid())
-  contestId   String
-  contest     Contest          @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  positionId  String?
-  position    ContestPosition? @relation(fields: [positionId], references: [id])
+  id           String           @id @default(cuid())
+  contestId    String
+  contest      Contest          @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  positionId   String?
+  position     ContestPosition? @relation(fields: [positionId], references: [id])
   candidateKey String
-  score       Decimal          @db.Decimal(10, 4)
-  rank        Int?
-  category    RankingCategory  @default(GENERAL)
-  sourceUrl   String
-  sourcePage  Int?
-  importedAt  DateTime         @default(now())
+  score        Decimal          @db.Decimal(10, 4)
+  rank         Int?
+  category     RankingCategory  @default(GENERAL)
+  sourceUrl    String
+  sourcePage   Int?
+  importedAt   DateTime         @default(now())
 
   @@index([contestId, positionId, category, score])
 }
