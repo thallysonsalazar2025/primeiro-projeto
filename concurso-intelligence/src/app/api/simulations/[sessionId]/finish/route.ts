@@ -19,6 +19,7 @@ export async function POST(
       id: true,
       startedAt: true,
       finishedAt: true,
+      questionIds: true,
       attempts: {
         orderBy: { answeredAt: "asc" },
         select: { questionId: true, correct: true, selected: true, elapsedMs: true },
@@ -38,9 +39,11 @@ export async function POST(
     });
   }
 
-  const answered = session.attempts.length;
-  const correct = session.attempts.filter((attempt) => attempt.correct).length;
-  const blank = session.attempts.filter((attempt) => attempt.selected === null).length;
+  const answeredAttempts = session.attempts.filter((attempt) => attempt.selected !== null);
+  const answered = answeredAttempts.length;
+  const correct = answeredAttempts.filter((attempt) => attempt.correct).length;
+  const incorrect = answeredAttempts.filter((attempt) => !attempt.correct).length;
+  const blank = Math.max(session.questionIds.length - answered, 0);
   const elapsedMs = session.attempts.reduce((total, attempt) => total + (attempt.elapsedMs ?? 0), 0);
 
   return NextResponse.json({
@@ -50,9 +53,10 @@ export async function POST(
       finishedAt,
     },
     result: {
+      totalQuestions: session.questionIds.length,
       answered,
       correct,
-      incorrect: answered - correct,
+      incorrect,
       blank,
       accuracy: answered === 0 ? 0 : correct / answered,
       elapsedMs,
