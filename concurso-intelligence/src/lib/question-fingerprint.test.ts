@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { questionFingerprint } from './question-fingerprint';
+import { questionFingerprint } from './question-fingerprint.ts';
 
 const baseQuestion = {
   board: 'FGV',
