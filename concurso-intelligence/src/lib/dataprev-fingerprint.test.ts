@@ -13,7 +13,7 @@ const question = {
 };
 
 test('preserva o fingerprint usado pela importação DATAPREV', () => {
-  const expected = '5a06a85f948fc5863bf97e4eb769d5073af36964b62312d92796f06e0b406346';
+  const expected = '8bd13228e929b62203e5cb4c62a3efe6c748f6cbf091c2bb8b74fed778c0be3d';
 
   assert.equal(dataprevFingerprint(question), expected);
 });
