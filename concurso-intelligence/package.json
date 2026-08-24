@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev"
+    "db:migrate": "prisma migrate dev",
+    "db:import:dataprev": "node --experimental-strip-types scripts/import-dataprev.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",
