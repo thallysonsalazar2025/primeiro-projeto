@@ -1,0 +1,42 @@
+name: Concurso Intelligence CI
+
+on:
+  pull_request:
+    paths:
+      - "concurso-intelligence/**"
+      - ".github/workflows/concurso-intelligence-ci.yml"
+  push:
+    branches:
+      - master
+    paths:
+      - "concurso-intelligence/**"
+      - ".github/workflows/concurso-intelligence-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: concurso-intelligence
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/concurso_ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Typecheck and validate Prisma schema
+        run: npm run quality
