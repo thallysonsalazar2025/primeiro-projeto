@@ -79,23 +79,26 @@ export default function SimulationPage() {
     setMarkingReview(questionId);
     setError('');
 
-    const response = await fetch(`/api/simulations/${sessionId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ questionId, markedForReview }),
-    });
-    const body = await response.json();
-    if (!response.ok) {
-      setError(body.error ?? 'Falha ao atualizar marcação para revisão');
-      setMarkingReview(null);
-      return;
-    }
+    try {
+      const response = await fetch(`/api/simulations/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questionId, markedForReview }),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(body?.error ?? 'Falha ao atualizar marcação para revisão');
+      }
 
-    setData((current) => current ? {
-      ...current,
-      session: { ...current.session, reviewQuestionIds: body.reviewQuestionIds },
-    } : current);
-    setMarkingReview(null);
+      setData((current) => current ? {
+        ...current,
+        session: { ...current.session, reviewQuestionIds: body.reviewQuestionIds },
+      } : current);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Falha ao atualizar marcação para revisão');
+    } finally {
+      setMarkingReview(null);
+    }
   }
 
   async function finish() {
@@ -178,7 +181,7 @@ export default function SimulationPage() {
                   <button
                     type="button"
                     onClick={() => toggleReview(question.id)}
-                    disabled={!data.session.canResume || markingReview === question.id || finishing}
+                    disabled={!data.session.canResume || Boolean(markingReview) || finishing}
                     aria-pressed={markedForReview}
                     style={reviewButtonStyle}
                   >
