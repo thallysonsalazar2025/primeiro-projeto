@@ -8,7 +8,7 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const [attempts, correct, recentLogins, subjects, recentSessions] = await Promise.all([
+  const [attempts, correct, recentLogins, subjects, recentSessions, elapsed] = await Promise.all([
     prisma.questionAttempt.count({ where: { userId: user.id } }),
     prisma.questionAttempt.count({ where: { userId: user.id, correct: true } }),
     prisma.loginHistory.findMany({ where: { userId: user.id }, orderBy: { loggedAt: 'desc' }, take: 5 }),
@@ -30,9 +30,14 @@ export default async function DashboardPage() {
         _count: { select: { attempts: true } },
       },
     }),
+    prisma.questionAttempt.aggregate({
+      where: { userId: user.id, elapsedMs: { not: null } },
+      _avg: { elapsedMs: true },
+    }),
   ]);
 
   const accuracy = attempts ? Math.round((correct / attempts) * 1000) / 10 : 0;
+  const averageAnswerTime = formatElapsedTime(elapsed._avg.elapsedMs);
 
   return (
     <main style={{ minHeight: '100vh', background: '#f8fafc', padding: 24 }}>
@@ -50,6 +55,7 @@ export default async function DashboardPage() {
           <Card title="Taxa de acerto" value={`${accuracy}%`} hint="Todas as sessões" />
           <Card title="Acertos" value={String(correct)} hint="Questões corretas" />
           <Card title="Questões únicas" value={String(subjects.length)} hint="Cobertura efetiva" />
+          <Card title="Tempo médio" value={averageAnswerTime} hint="Por questão respondida" />
         </section>
 
         <section style={panelStyle}>
@@ -112,6 +118,17 @@ export default async function DashboardPage() {
       </div>
     </main>
   );
+}
+
+function formatElapsedTime(elapsedMs: number | null) {
+  if (elapsedMs === null) return '—';
+
+  const totalSeconds = Math.max(0, Math.round(elapsedMs / 1000));
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
 }
 
 function Card({ title, value, hint }: { title: string; value: string; hint: string }) {
