@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { calculateSimulationResult } from "@/lib/simulation-result";
 
 export async function POST(
   _request: Request,
@@ -39,12 +40,7 @@ export async function POST(
     });
   }
 
-  const answeredAttempts = session.attempts.filter((attempt) => attempt.selected !== null);
-  const answered = answeredAttempts.length;
-  const correct = answeredAttempts.filter((attempt) => attempt.correct).length;
-  const incorrect = answeredAttempts.filter((attempt) => !attempt.correct).length;
-  const blank = Math.max(session.questionIds.length - answered, 0);
-  const elapsedMs = session.attempts.reduce((total, attempt) => total + (attempt.elapsedMs ?? 0), 0);
+  const result = calculateSimulationResult(session.questionIds.length, session.attempts);
 
   return NextResponse.json({
     session: {
@@ -52,14 +48,6 @@ export async function POST(
       startedAt: session.startedAt,
       finishedAt,
     },
-    result: {
-      totalQuestions: session.questionIds.length,
-      answered,
-      correct,
-      incorrect,
-      blank,
-      accuracy: answered === 0 ? 0 : correct / answered,
-      elapsedMs,
-    },
+    result,
   });
 }
