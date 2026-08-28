@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth";
@@ -102,6 +103,55 @@ export async function GET(
   });
 }
 
+async function updateReviewMarker(
+  sessionId: string,
+  userId: string,
+  questionId: string,
+  markedForReview: boolean,
+) {
+  const maxAttempts = 3;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const session = await tx.studySession.findFirst({
+          where: { id: sessionId, userId },
+          select: { id: true, finishedAt: true, questionIds: true, reviewQuestionIds: true },
+        });
+
+        if (!session) {
+          return { kind: "not-found" as const };
+        }
+
+        if (session.finishedAt) {
+          return { kind: "finished" as const };
+        }
+
+        if (!session.questionIds.includes(questionId)) {
+          return { kind: "invalid-question" as const };
+        }
+
+        const reviewQuestionIds = markedForReview
+          ? Array.from(new Set([...session.reviewQuestionIds, questionId]))
+          : session.reviewQuestionIds.filter((id) => id !== questionId);
+
+        const updated = await tx.studySession.update({
+          where: { id: session.id },
+          data: { reviewQuestionIds },
+          select: { reviewQuestionIds: true },
+        });
+
+        return { kind: "updated" as const, reviewQuestionIds: updated.reviewQuestionIds };
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      const retryable = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
+      if (!retryable || attempt === maxAttempts) throw error;
+    }
+  }
+
+  throw new Error("Could not update review marker");
+}
+
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ sessionId: string }> },
@@ -120,32 +170,19 @@ export async function PATCH(
     return NextResponse.json({ error: "questionId and markedForReview are required" }, { status: 400 });
   }
 
-  const session = await prisma.studySession.findFirst({
-    where: { id: sessionId, userId: user.id },
-    select: { id: true, finishedAt: true, questionIds: true, reviewQuestionIds: true },
-  });
+  const result = await updateReviewMarker(sessionId, user.id, questionId, markedForReview);
 
-  if (!session) {
+  if (result.kind === "not-found") {
     return NextResponse.json({ error: "Simulation session not found" }, { status: 404 });
   }
 
-  if (session.finishedAt) {
+  if (result.kind === "finished") {
     return NextResponse.json({ error: "Simulation session already finished" }, { status: 409 });
   }
 
-  if (!session.questionIds.includes(questionId)) {
+  if (result.kind === "invalid-question") {
     return NextResponse.json({ error: "Question does not belong to this simulation" }, { status: 400 });
   }
 
-  const reviewQuestionIds = markedForReview
-    ? Array.from(new Set([...session.reviewQuestionIds, questionId]))
-    : session.reviewQuestionIds.filter((id) => id !== questionId);
-
-  const updated = await prisma.studySession.update({
-    where: { id: session.id },
-    data: { reviewQuestionIds },
-    select: { reviewQuestionIds: true },
-  });
-
-  return NextResponse.json({ reviewQuestionIds: updated.reviewQuestionIds });
+  return NextResponse.json({ reviewQuestionIds: result.reviewQuestionIds });
 }
