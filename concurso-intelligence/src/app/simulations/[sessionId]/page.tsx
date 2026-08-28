@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 type Choice = { id: string; label: string; text: string };
 type Question = { id: string; number: number | null; statement: string; choices: Choice[]; subject: { name: string } | null };
@@ -21,6 +21,7 @@ export default function SimulationPage() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
   useEffect(() => {
     fetch(`/api/simulations/${sessionId}`)
@@ -31,6 +32,22 @@ export default function SimulationPage() {
       .then(setData)
       .catch((cause: Error) => setError(cause.message));
   }, [sessionId]);
+
+  const answeredQuestionIds = useMemo(() => {
+    if (!data) return new Set<string>();
+    return new Set(
+      Object.entries(data.attemptsByQuestionId)
+        .filter(([, attempt]) => Boolean(attempt.selected))
+        .map(([questionId]) => questionId),
+    );
+  }, [data]);
+
+  function goToQuestion(index: number) {
+    if (!data) return;
+    const boundedIndex = Math.max(0, Math.min(index, data.questions.length - 1));
+    setCurrentQuestionIndex(boundedIndex);
+    document.getElementById(`question-${data.questions[boundedIndex].id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   async function answer(questionId: string, selected: string) {
     if (!data?.session.canResume) return;
@@ -79,6 +96,36 @@ export default function SimulationPage() {
         <h1>{data.session.positionName ?? 'Simulado'}</h1>
         <p style={{ color: '#64748b' }}>{data.session.answeredCount}/{data.session.questionCount} respondidas {data.session.canResume ? '· em andamento' : '· finalizado'}</p>
         {error && <p style={{ color: '#b91c1c' }}>{error}</p>}
+
+        <nav aria-label="Navegação entre questões" style={navigatorStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <strong>Questão {currentQuestionIndex + 1} de {data.questions.length}</strong>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={() => goToQuestion(currentQuestionIndex - 1)} disabled={currentQuestionIndex === 0} style={navButtonStyle}>Anterior</button>
+              <button type="button" onClick={() => goToQuestion(currentQuestionIndex + 1)} disabled={currentQuestionIndex === data.questions.length - 1} style={navButtonStyle}>Próxima</button>
+            </div>
+          </div>
+          <div style={questionGridStyle}>
+            {data.questions.map((question, index) => {
+              const answered = answeredQuestionIds.has(question.id);
+              const active = index === currentQuestionIndex;
+              return (
+                <button
+                  key={question.id}
+                  type="button"
+                  aria-label={`Ir para questão ${question.number ?? index + 1}${answered ? ', respondida' : ', em branco'}`}
+                  aria-current={active ? 'step' : undefined}
+                  onClick={() => goToQuestion(index)}
+                  style={{ ...questionButtonStyle, border: active ? '2px solid #4f46e5' : '1px solid #cbd5e1', background: answered ? '#eef2ff' : '#fff', fontWeight: active || answered ? 800 : 600 }}
+                >
+                  {question.number ?? index + 1}
+                </button>
+              );
+            })}
+          </div>
+          <small style={{ color: '#64748b' }}>Questões com fundo destacado já possuem resposta salva.</small>
+        </nav>
+
         {result && (
           <section style={resultStyle} aria-live="polite">
             <h2 style={{ marginTop: 0 }}>Resultado</h2>
@@ -88,7 +135,13 @@ export default function SimulationPage() {
         )}
         <div style={{ display: 'grid', gap: 18 }}>
           {data.questions.map((question, index) => (
-            <article key={question.id} style={cardStyle}>
+            <article
+              id={`question-${question.id}`}
+              key={question.id}
+              style={cardStyle}
+              onFocusCapture={() => setCurrentQuestionIndex(index)}
+              onClick={() => setCurrentQuestionIndex(index)}
+            >
               <p style={{ color: '#4f46e5', fontWeight: 800 }}>Questão {question.number ?? index + 1}{question.subject ? ` · ${question.subject.name}` : ''}</p>
               <p style={{ lineHeight: 1.6 }}>{question.statement}</p>
               <div style={{ display: 'grid', gap: 10 }}>
@@ -119,6 +172,10 @@ export default function SimulationPage() {
 }
 
 const pageStyle = { minHeight: '100vh', background: '#f8fafc', padding: 24 };
-const cardStyle = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 18, padding: 20 };
+const cardStyle = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 18, padding: 20, scrollMarginTop: 16 };
 const resultStyle = { background: '#fff', border: '1px solid #cbd5e1', borderRadius: 18, padding: 20, marginBottom: 18 };
+const navigatorStyle = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: 16, marginBottom: 18 };
+const questionGridStyle = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(44px, 1fr))', gap: 8, margin: '12px 0 8px' };
+const questionButtonStyle = { minHeight: 44, borderRadius: 10, cursor: 'pointer' };
+const navButtonStyle = { minHeight: 40, padding: '8px 14px', border: '1px solid #cbd5e1', borderRadius: 10, background: '#fff', fontWeight: 700, cursor: 'pointer' };
 const finishStyle = { width: '100%', padding: 16, border: 0, borderRadius: 12, background: '#4f46e5', color: '#fff', fontWeight: 800, fontSize: 16, cursor: 'pointer' };
