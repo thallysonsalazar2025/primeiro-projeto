@@ -56,10 +56,13 @@ export function SimulationBuilder() {
     () => catalog?.contests.find((contest) => contest.id === contestId)?.positions ?? [],
     [catalog, contestId],
   );
-  const topics = useMemo(
-    () => catalog?.subjects.find((subject) => subject.id === subjectId)?.topics ?? [],
-    [catalog, subjectId],
-  );
+  const topics = useMemo(() => {
+    const roots = catalog?.subjects.find((subject) => subject.id === subjectId)?.topics ?? [];
+    return roots.flatMap((topic) => [
+      { id: topic.id, name: topic.name },
+      ...topic.children.map((child) => ({ id: child.id, name: `${topic.name} › ${child.name}` })),
+    ]);
+  }, [catalog, subjectId]);
 
   async function createSimulation() {
     setError('');
@@ -97,12 +100,12 @@ export function SimulationBuilder() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 12 }}>
         <Select label="Banca" value={boardId} onChange={setBoardId} options={catalog?.boards.map((item) => ({ value: item.id, label: item.acronym ? `${item.acronym} · ${item.name}` : item.name })) ?? []} />
         <Select label="Concurso" value={contestId} onChange={(value) => { setContestId(value); setPositionId(''); }} options={catalog?.contests.map((item) => ({ value: item.id, label: `${item.name}${item.year ? ` · ${item.year}` : ''}` })) ?? []} />
-        <Select label="Cargo" value={positionId} onChange={setPositionId} disabled={!contestId} options={positions.map((item) => ({ value: item.id, label: item.name }))} />
+        <Select label="Cargo" value={positionId} onChange={setPositionId} disabled={!contestId} options={positions.map((item) => ({ value: item.id, label: `${item.name}${item.area ? ` · ${item.area}` : ''}` }))} />
         <Select label="Disciplina" value={subjectId} onChange={(value) => { setSubjectId(value); setTopicId(''); }} options={catalog?.subjects.map((item) => ({ value: item.id, label: item.name })) ?? []} />
         <Select label="Assunto" value={topicId} onChange={setTopicId} disabled={!subjectId} options={topics.map((item) => ({ value: item.id, label: item.name }))} />
         <label style={fieldStyle}>
           <span style={labelStyle}>Quantidade</span>
-          <input type="number" min={1} max={100} value={quantity} onChange={(event) => setQuantity(Math.max(1, Math.min(100, Number(event.target.value) || 1)))} style={inputStyle} />
+          <input type="number" min={1} max={100} step={1} value={quantity} onChange={(event) => setQuantity(Math.max(1, Math.min(100, Math.trunc(Number(event.target.value) || 1))))} style={inputStyle} />
         </label>
       </div>
       {error && <p role="alert" style={{ margin: 0, color: '#b91c1c' }}>{error}</p>}
