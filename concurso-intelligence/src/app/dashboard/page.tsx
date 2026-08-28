@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { SimulationBuilder } from './SimulationBuilder';
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -88,10 +89,8 @@ export default async function DashboardPage() {
 
         <section style={panelStyle}>
           <h2 style={{ marginTop: 0 }}>Preparatório inteligente</h2>
-          <p style={{ color: '#64748b' }}>Selecione banca, concurso, cargo, disciplina e assunto para montar uma sessão. O próximo módulo usa seus acertos, dificuldade, tempo de resposta e o edital escolhido para priorizar questões.</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12 }}>
-            {['Banca', 'Concurso', 'Cargo', 'Disciplina', 'Assunto'].map((label) => <button key={label} style={filterStyle}>{label} ▾</button>)}
-          </div>
+          <p style={{ color: '#64748b' }}>Monte uma sessão com os filtros disponíveis no banco de questões. Você pode deixar campos em “Todos” para ampliar a seleção.</p>
+          <SimulationBuilder />
         </section>
 
         <section style={panelStyle}>
@@ -124,5 +123,4 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 const panelStyle = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 20, padding: 22, marginTop: 18, boxShadow: '0 8px 30px rgba(15,23,42,.04)' };
-const filterStyle = { textAlign: 'left' as const, padding: 14, border: '1px solid #cbd5e1', borderRadius: 12, background: '#fff', color: '#334155', cursor: 'pointer' };
 const resumeStyle = { padding: '10px 14px', borderRadius: 10, background: '#4f46e5', color: '#fff', fontWeight: 700, textDecoration: 'none' };
