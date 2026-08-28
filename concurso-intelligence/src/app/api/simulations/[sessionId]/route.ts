@@ -22,6 +22,7 @@ export async function GET(
       boardId: true,
       positionName: true,
       questionIds: true,
+      reviewQuestionIds: true,
       attempts: {
         orderBy: { answeredAt: "asc" },
         select: {
@@ -93,9 +94,58 @@ export async function GET(
       positionName: session.positionName,
       questionCount: session.questionIds.length,
       answeredCount: session.attempts.filter((attempt) => attempt.selected !== null).length,
+      reviewQuestionIds: session.reviewQuestionIds,
       canResume: session.finishedAt === null,
     },
     questions: orderedQuestions,
     attemptsByQuestionId,
   });
+}
+
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ sessionId: string }> },
+) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { sessionId } = await context.params;
+  const payload = await request.json().catch(() => null) as { questionId?: unknown; markedForReview?: unknown } | null;
+  const questionId = typeof payload?.questionId === "string" ? payload.questionId : "";
+  const markedForReview = payload?.markedForReview;
+
+  if (!questionId || typeof markedForReview !== "boolean") {
+    return NextResponse.json({ error: "questionId and markedForReview are required" }, { status: 400 });
+  }
+
+  const session = await prisma.studySession.findFirst({
+    where: { id: sessionId, userId: user.id },
+    select: { id: true, finishedAt: true, questionIds: true, reviewQuestionIds: true },
+  });
+
+  if (!session) {
+    return NextResponse.json({ error: "Simulation session not found" }, { status: 404 });
+  }
+
+  if (session.finishedAt) {
+    return NextResponse.json({ error: "Simulation session already finished" }, { status: 409 });
+  }
+
+  if (!session.questionIds.includes(questionId)) {
+    return NextResponse.json({ error: "Question does not belong to this simulation" }, { status: 400 });
+  }
+
+  const reviewQuestionIds = markedForReview
+    ? Array.from(new Set([...session.reviewQuestionIds, questionId]))
+    : session.reviewQuestionIds.filter((id) => id !== questionId);
+
+  const updated = await prisma.studySession.update({
+    where: { id: session.id },
+    data: { reviewQuestionIds },
+    select: { reviewQuestionIds: true },
+  });
+
+  return NextResponse.json({ reviewQuestionIds: updated.reviewQuestionIds });
 }
