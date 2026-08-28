@@ -175,15 +175,16 @@ model QuestionProvenance {
 }
 
 model StudySession {
-  id           String            @id @default(cuid())
-  userId       String
-  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  boardId      String?
-  positionName String?
-  questionIds  String[]          @default([])
-  startedAt    DateTime          @default(now())
-  finishedAt   DateTime?
-  attempts     QuestionAttempt[]
+  id                String            @id @default(cuid())
+  userId            String
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boardId           String?
+  positionName      String?
+  questionIds       String[]          @default([])
+  reviewQuestionIds String[]          @default([])
+  startedAt         DateTime          @default(now())
+  finishedAt        DateTime?
+  attempts          QuestionAttempt[]
 }
 
 model QuestionAttempt {
