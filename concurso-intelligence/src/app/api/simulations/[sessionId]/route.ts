@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { nextReviewQuestionIds } from "@/lib/review-markers";
 
 export async function GET(
   _request: Request,
@@ -131,9 +132,11 @@ async function updateReviewMarker(
           return { kind: "invalid-question" as const };
         }
 
-        const reviewQuestionIds = markedForReview
-          ? Array.from(new Set([...session.reviewQuestionIds, questionId]))
-          : session.reviewQuestionIds.filter((id) => id !== questionId);
+        const reviewQuestionIds = nextReviewQuestionIds(
+          session.reviewQuestionIds,
+          questionId,
+          markedForReview,
+        );
 
         const updated = await tx.studySession.update({
           where: { id: session.id },
