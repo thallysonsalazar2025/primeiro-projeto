@@ -1,0 +1,2 @@
+ALTER TABLE "StudySession"
+ADD COLUMN "reviewQuestionIds" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
