@@ -49,6 +49,48 @@ function subjectFor(questionNumber: number) {
   return SUBJECTS.find((subject) => questionNumber >= subject.from && questionNumber <= subject.to)!;
 }
 
+async function validatePersistedImport(examId: string, expectedKey: string[]) {
+  const persisted = await prisma.question.findMany({
+    where: { examId },
+    orderBy: { number: "asc" },
+    include: { choices: { orderBy: { label: "asc" } }, provenance: true },
+  });
+
+  if (persisted.length !== 70) {
+    throw new Error(`Validação pós-import falhou: esperadas 70 questões, persistidas ${persisted.length}`);
+  }
+
+  const numbers = persisted.map((question) => question.number);
+  if (numbers.some((number) => number === null) || new Set(numbers).size !== 70 || numbers[0] !== 1 || numbers[69] !== 70) {
+    throw new Error("Validação pós-import falhou: numeração persistida não corresponde à sequência 1..70");
+  }
+
+  for (const question of persisted) {
+    const number = question.number!;
+    const expectedAnswer = expectedKey[number - 1];
+    const correctChoices = question.choices.filter((choice) => choice.isCorrect);
+
+    if (question.choices.length === 0) {
+      throw new Error(`Validação pós-import falhou: questão ${number} sem alternativas persistidas`);
+    }
+
+    if (expectedAnswer === "*") {
+      if (question.status !== QuestionStatus.ANNULLED || correctChoices.length !== 0) {
+        throw new Error(`Validação pós-import falhou: questão anulada ${number} inconsistente`);
+      }
+    } else if (correctChoices.length !== 1 || correctChoices[0].label !== expectedAnswer) {
+      throw new Error(`Validação pós-import falhou: gabarito da questão ${number} inconsistente`);
+    }
+
+    const hasLegacyProvenance = question.provenance.some(
+      (source) => source.sourceType === SourceType.GITHUB_REPOSITORY && source.sourceUrl === "legacy://primeiro-projeto",
+    );
+    if (!hasLegacyProvenance) {
+      throw new Error(`Validação pós-import falhou: questão ${number} sem proveniência do legado`);
+    }
+  }
+}
+
 async function main() {
   const { questions, key } = await loadLegacyQuestions();
 
@@ -153,7 +195,8 @@ async function main() {
     imported++;
   }
 
-  console.log(`DATAPREV importado/atualizado com sucesso: ${imported} questões.`);
+  await validatePersistedImport(exam.id, key);
+  console.log(`DATAPREV importado/atualizado e validado com sucesso: ${imported} questões.`);
 }
 
 main()
