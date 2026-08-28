@@ -8,7 +8,7 @@ type Choice = { id: string; label: string; text: string };
 type Question = { id: string; number: number | null; statement: string; choices: Choice[]; subject: { name: string } | null };
 type Result = { totalQuestions: number; answered: number; correct: number; incorrect: number; blank: number; accuracy: number; elapsedMs: number };
 type SessionPayload = {
-  session: { id: string; questionCount: number; answeredCount: number; canResume: boolean; positionName: string | null };
+  session: { id: string; questionCount: number; answeredCount: number; reviewQuestionIds: string[]; canResume: boolean; positionName: string | null };
   questions: Question[];
   attemptsByQuestionId: Record<string, { selected: string | null }>;
 };
@@ -20,6 +20,7 @@ export default function SimulationPage() {
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState<string | null>(null);
+  const [markingReview, setMarkingReview] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
@@ -41,6 +42,8 @@ export default function SimulationPage() {
         .map(([questionId]) => questionId),
     );
   }, [data]);
+
+  const reviewQuestionIds = useMemo(() => new Set(data?.session.reviewQuestionIds ?? []), [data]);
 
   function goToQuestion(index: number) {
     if (!data) return;
@@ -70,8 +73,33 @@ export default function SimulationPage() {
     setSaving(null);
   }
 
+  async function toggleReview(questionId: string) {
+    if (!data?.session.canResume || markingReview) return;
+    const markedForReview = !reviewQuestionIds.has(questionId);
+    setMarkingReview(questionId);
+    setError('');
+
+    const response = await fetch(`/api/simulations/${sessionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ questionId, markedForReview }),
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      setError(body.error ?? 'Falha ao atualizar marcação para revisão');
+      setMarkingReview(null);
+      return;
+    }
+
+    setData((current) => current ? {
+      ...current,
+      session: { ...current.session, reviewQuestionIds: body.reviewQuestionIds },
+    } : current);
+    setMarkingReview(null);
+  }
+
   async function finish() {
-    if (!data?.session.canResume || finishing || saving) return;
+    if (!data?.session.canResume || finishing || saving || markingReview) return;
     setFinishing(true);
     setError('');
     const response = await fetch(`/api/simulations/${sessionId}/finish`, { method: 'POST' });
@@ -94,7 +122,7 @@ export default function SimulationPage() {
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
         <Link href="/dashboard">← Voltar ao painel</Link>
         <h1>{data.session.positionName ?? 'Simulado'}</h1>
-        <p style={{ color: '#64748b' }}>{data.session.answeredCount}/{data.session.questionCount} respondidas {data.session.canResume ? '· em andamento' : '· finalizado'}</p>
+        <p style={{ color: '#64748b' }}>{data.session.answeredCount}/{data.session.questionCount} respondidas · {data.session.reviewQuestionIds.length} para revisão {data.session.canResume ? '· em andamento' : '· finalizado'}</p>
         {error && <p style={{ color: '#b91c1c' }}>{error}</p>}
 
         <nav aria-label="Navegação entre questões" style={navigatorStyle}>
@@ -108,22 +136,23 @@ export default function SimulationPage() {
           <div style={questionGridStyle}>
             {data.questions.map((question, index) => {
               const answered = answeredQuestionIds.has(question.id);
+              const markedForReview = reviewQuestionIds.has(question.id);
               const active = index === currentQuestionIndex;
               return (
                 <button
                   key={question.id}
                   type="button"
-                  aria-label={`Ir para questão ${question.number ?? index + 1}${answered ? ', respondida' : ', em branco'}`}
+                  aria-label={`Ir para questão ${question.number ?? index + 1}${answered ? ', respondida' : ', em branco'}${markedForReview ? ', marcada para revisão' : ''}`}
                   aria-current={active ? 'step' : undefined}
                   onClick={() => goToQuestion(index)}
-                  style={{ ...questionButtonStyle, border: active ? '2px solid #4f46e5' : '1px solid #cbd5e1', background: answered ? '#eef2ff' : '#fff', fontWeight: active || answered ? 800 : 600 }}
+                  style={{ ...questionButtonStyle, border: active ? '2px solid #4f46e5' : markedForReview ? '2px solid #d97706' : '1px solid #cbd5e1', background: answered ? '#eef2ff' : '#fff', fontWeight: active || answered || markedForReview ? 800 : 600 }}
                 >
-                  {question.number ?? index + 1}
+                  {markedForReview ? '★ ' : ''}{question.number ?? index + 1}
                 </button>
               );
             })}
           </div>
-          <small style={{ color: '#64748b' }}>Questões com fundo destacado já possuem resposta salva.</small>
+          <small style={{ color: '#64748b' }}>Fundo destacado: respondida. ★: marcada para revisão e salva na sessão.</small>
         </nav>
 
         {result && (
@@ -134,34 +163,48 @@ export default function SimulationPage() {
           </section>
         )}
         <div style={{ display: 'grid', gap: 18 }}>
-          {data.questions.map((question, index) => (
-            <article
-              id={`question-${question.id}`}
-              key={question.id}
-              style={cardStyle}
-              onFocusCapture={() => setCurrentQuestionIndex(index)}
-              onClick={() => setCurrentQuestionIndex(index)}
-            >
-              <p style={{ color: '#4f46e5', fontWeight: 800 }}>Questão {question.number ?? index + 1}{question.subject ? ` · ${question.subject.name}` : ''}</p>
-              <p style={{ lineHeight: 1.6 }}>{question.statement}</p>
-              <div style={{ display: 'grid', gap: 10 }}>
-                {question.choices.map((choice) => {
-                  const selected = data.attemptsByQuestionId[question.id]?.selected === choice.label;
-                  return (
-                    <label key={choice.id} style={{ border: selected ? '2px solid #4f46e5' : '1px solid #cbd5e1', borderRadius: 12, padding: 12, cursor: data.session.canResume ? 'pointer' : 'default' }}>
-                      <input type="radio" name={question.id} checked={selected} disabled={!data.session.canResume || saving === question.id || finishing} onChange={() => answer(question.id, choice.label)} />{' '}
-                      <strong>{choice.label}.</strong> {choice.text}
-                    </label>
-                  );
-                })}
-              </div>
-              {saving === question.id && <small>Salvando...</small>}
-            </article>
-          ))}
+          {data.questions.map((question, index) => {
+            const markedForReview = reviewQuestionIds.has(question.id);
+            return (
+              <article
+                id={`question-${question.id}`}
+                key={question.id}
+                style={cardStyle}
+                onFocusCapture={() => setCurrentQuestionIndex(index)}
+                onClick={() => setCurrentQuestionIndex(index)}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <p style={{ color: '#4f46e5', fontWeight: 800, margin: 0 }}>Questão {question.number ?? index + 1}{question.subject ? ` · ${question.subject.name}` : ''}</p>
+                  <button
+                    type="button"
+                    onClick={() => toggleReview(question.id)}
+                    disabled={!data.session.canResume || markingReview === question.id || finishing}
+                    aria-pressed={markedForReview}
+                    style={reviewButtonStyle}
+                  >
+                    {markingReview === question.id ? 'Salvando...' : markedForReview ? '★ Marcada para revisão' : '☆ Marcar para revisão'}
+                  </button>
+                </div>
+                <p style={{ lineHeight: 1.6 }}>{question.statement}</p>
+                <div style={{ display: 'grid', gap: 10 }}>
+                  {question.choices.map((choice) => {
+                    const selected = data.attemptsByQuestionId[question.id]?.selected === choice.label;
+                    return (
+                      <label key={choice.id} style={{ border: selected ? '2px solid #4f46e5' : '1px solid #cbd5e1', borderRadius: 12, padding: 12, cursor: data.session.canResume ? 'pointer' : 'default' }}>
+                        <input type="radio" name={question.id} checked={selected} disabled={!data.session.canResume || saving === question.id || finishing} onChange={() => answer(question.id, choice.label)} />{' '}
+                        <strong>{choice.label}.</strong> {choice.text}
+                      </label>
+                    );
+                  })}
+                </div>
+                {saving === question.id && <small>Salvando...</small>}
+              </article>
+            );
+          })}
         </div>
         {data.session.canResume && (
           <div style={{ marginTop: 24 }}>
-            <button type="button" onClick={finish} disabled={finishing || Boolean(saving)} style={finishStyle}>
+            <button type="button" onClick={finish} disabled={finishing || Boolean(saving) || Boolean(markingReview)} style={finishStyle}>
               {finishing ? 'Finalizando...' : `Finalizar prova${data.session.answeredCount < data.session.questionCount ? ` (${data.session.questionCount - data.session.answeredCount} em branco)` : ''}`}
             </button>
           </div>
@@ -178,4 +221,5 @@ const navigatorStyle = { background: '#fff', border: '1px solid #e2e8f0', border
 const questionGridStyle = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(44px, 1fr))', gap: 8, margin: '12px 0 8px' };
 const questionButtonStyle = { minHeight: 44, borderRadius: 10, cursor: 'pointer' };
 const navButtonStyle = { minHeight: 40, padding: '8px 14px', border: '1px solid #cbd5e1', borderRadius: 10, background: '#fff', fontWeight: 700, cursor: 'pointer' };
+const reviewButtonStyle = { minHeight: 40, padding: '8px 12px', border: '1px solid #d97706', borderRadius: 10, background: '#fff7ed', color: '#92400e', fontWeight: 700, cursor: 'pointer' };
 const finishStyle = { width: '100%', padding: 16, border: 0, borderRadius: 12, background: '#4f46e5', color: '#fff', fontWeight: 800, fontSize: 16, cursor: 'pointer' };
