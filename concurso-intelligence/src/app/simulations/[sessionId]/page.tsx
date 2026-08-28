@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 
 type Choice = { id: string; label: string; text: string };
 type Question = { id: string; number: number | null; statement: string; choices: Choice[]; subject: { name: string } | null };
+type Result = { totalQuestions: number; answered: number; correct: number; incorrect: number; blank: number; accuracy: number; elapsedMs: number };
 type SessionPayload = {
   session: { id: string; questionCount: number; answeredCount: number; canResume: boolean; positionName: string | null };
   questions: Question[];
@@ -16,8 +17,10 @@ export default function SimulationPage() {
   const params = useParams<{ sessionId: string }>();
   const sessionId = params.sessionId;
   const [data, setData] = useState<SessionPayload | null>(null);
+  const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState<string | null>(null);
+  const [finishing, setFinishing] = useState(false);
 
   useEffect(() => {
     fetch(`/api/simulations/${sessionId}`)
@@ -34,9 +37,7 @@ export default function SimulationPage() {
     setSaving(questionId);
     setError('');
     const response = await fetch(`/api/simulations/${sessionId}/answers`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ questionId, selected }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId, selected }),
     });
     if (!response.ok) {
       const body = await response.json();
@@ -52,6 +53,22 @@ export default function SimulationPage() {
     setSaving(null);
   }
 
+  async function finish() {
+    if (!data?.session.canResume || finishing || saving) return;
+    setFinishing(true);
+    setError('');
+    const response = await fetch(`/api/simulations/${sessionId}/finish`, { method: 'POST' });
+    const body = await response.json();
+    if (!response.ok) {
+      setError(body.error ?? 'Falha ao finalizar simulado');
+      setFinishing(false);
+      return;
+    }
+    setResult(body.result);
+    setData((current) => current ? { ...current, session: { ...current.session, canResume: false } } : current);
+    setFinishing(false);
+  }
+
   if (error && !data) return <main style={pageStyle}><p>{error}</p><Link href="/dashboard">Voltar ao painel</Link></main>;
   if (!data) return <main style={pageStyle}><p>Carregando simulado...</p></main>;
 
@@ -62,6 +79,13 @@ export default function SimulationPage() {
         <h1>{data.session.positionName ?? 'Simulado'}</h1>
         <p style={{ color: '#64748b' }}>{data.session.answeredCount}/{data.session.questionCount} respondidas {data.session.canResume ? '· em andamento' : '· finalizado'}</p>
         {error && <p style={{ color: '#b91c1c' }}>{error}</p>}
+        {result && (
+          <section style={resultStyle} aria-live="polite">
+            <h2 style={{ marginTop: 0 }}>Resultado</h2>
+            <strong style={{ fontSize: 32 }}>{Math.round(result.accuracy * 100)}% de acerto</strong>
+            <p>{result.correct} corretas · {result.incorrect} incorretas · {result.blank} em branco · {result.answered}/{result.totalQuestions} respondidas</p>
+          </section>
+        )}
         <div style={{ display: 'grid', gap: 18 }}>
           {data.questions.map((question, index) => (
             <article key={question.id} style={cardStyle}>
@@ -72,7 +96,7 @@ export default function SimulationPage() {
                   const selected = data.attemptsByQuestionId[question.id]?.selected === choice.label;
                   return (
                     <label key={choice.id} style={{ border: selected ? '2px solid #4f46e5' : '1px solid #cbd5e1', borderRadius: 12, padding: 12, cursor: data.session.canResume ? 'pointer' : 'default' }}>
-                      <input type="radio" name={question.id} checked={selected} disabled={!data.session.canResume || saving === question.id} onChange={() => answer(question.id, choice.label)} />{' '}
+                      <input type="radio" name={question.id} checked={selected} disabled={!data.session.canResume || saving === question.id || finishing} onChange={() => answer(question.id, choice.label)} />{' '}
                       <strong>{choice.label}.</strong> {choice.text}
                     </label>
                   );
@@ -82,6 +106,13 @@ export default function SimulationPage() {
             </article>
           ))}
         </div>
+        {data.session.canResume && (
+          <div style={{ marginTop: 24 }}>
+            <button type="button" onClick={finish} disabled={finishing || Boolean(saving)} style={finishStyle}>
+              {finishing ? 'Finalizando...' : `Finalizar prova${data.session.answeredCount < data.session.questionCount ? ` (${data.session.questionCount - data.session.answeredCount} em branco)` : ''}`}
+            </button>
+          </div>
+        )}
       </div>
     </main>
   );
@@ -89,3 +120,5 @@ export default function SimulationPage() {
 
 const pageStyle = { minHeight: '100vh', background: '#f8fafc', padding: 24 };
 const cardStyle = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 18, padding: 20 };
+const resultStyle = { background: '#fff', border: '1px solid #cbd5e1', borderRadius: 18, padding: 20, marginBottom: 18 };
+const finishStyle = { width: '100%', padding: 16, border: 0, borderRadius: 12, background: '#4f46e5', color: '#fff', fontWeight: 800, fontSize: 16, cursor: 'pointer' };
