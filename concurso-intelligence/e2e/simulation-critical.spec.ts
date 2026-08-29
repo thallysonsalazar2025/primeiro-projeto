@@ -3,6 +3,10 @@ import { expect, test } from '@playwright/test';
 
 const prisma = new PrismaClient();
 
+test.afterAll(async () => {
+  await prisma.$disconnect();
+});
+
 test('creates, resumes, reviews and finishes a simulation', async ({ page }) => {
   const suffix = Date.now().toString();
   const email = `a9-sim-${suffix}@example.com`;
