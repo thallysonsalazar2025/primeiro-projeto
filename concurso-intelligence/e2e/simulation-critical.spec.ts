@@ -62,8 +62,10 @@ test('creates, resumes, reviews and finishes a simulation', async ({ page }) => 
     await expect(page).toHaveURL(/\/simulations\/[^/]+$/);
     await expect(page.getByText(`Questão crítica E2E ${suffix}`)).toBeVisible();
 
-    await page.getByRole('radio', { name: /A\. Resposta correta/ }).check();
+    const correctAnswer = page.getByRole('radio', { name: /A\. Resposta correta/ });
+    await correctAnswer.click();
     await expect(page.getByText('1/1 respondidas')).toBeVisible();
+    await expect(correctAnswer).toBeChecked();
 
     await page.getByRole('button', { name: '☆ Marcar para revisão' }).click();
     await expect(page.getByRole('button', { name: '★ Marcada para revisão' })).toBeVisible();
