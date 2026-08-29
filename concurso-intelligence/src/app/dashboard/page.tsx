@@ -11,11 +11,21 @@ type SubjectPerformance = {
   accuracy: number;
 };
 
+type TopicPerformance = {
+  topicId: string;
+  subjectName: string;
+  topicName: string;
+  parentName: string | null;
+  attempts: bigint;
+  correct: bigint;
+  accuracy: number;
+};
+
 export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const [attempts, correct, recentLogins, subjects, recentSessions, elapsed, subjectPerformanceRows] = await Promise.all([
+  const [attempts, correct, recentLogins, subjects, recentSessions, elapsed, subjectPerformanceRows, topicPerformanceRows] = await Promise.all([
     prisma.questionAttempt.count({ where: { userId: user.id } }),
     prisma.questionAttempt.count({ where: { userId: user.id, correct: true } }),
     prisma.loginHistory.findMany({ where: { userId: user.id }, orderBy: { loggedAt: 'desc' }, take: 5 }),
@@ -59,6 +69,29 @@ export default async function DashboardPage() {
       ORDER BY "accuracy" ASC, "attempts" DESC, s."name" ASC
       LIMIT 6
     `,
+    prisma.$queryRaw<TopicPerformance[]>`
+      SELECT
+        t."id" AS "topicId",
+        s."name" AS "subjectName",
+        t."name" AS "topicName",
+        parent."name" AS "parentName",
+        COUNT(*)::bigint AS "attempts",
+        SUM(CASE WHEN qa."correct" THEN 1 ELSE 0 END)::bigint AS "correct",
+        ROUND(
+          (SUM(CASE WHEN qa."correct" THEN 1 ELSE 0 END)::numeric / COUNT(*)::numeric) * 100,
+          1
+        )::double precision AS "accuracy"
+      FROM "QuestionAttempt" qa
+      INNER JOIN "Question" q ON q."id" = qa."questionId"
+      INNER JOIN "Topic" t ON t."id" = q."topicId"
+      INNER JOIN "Subject" s ON s."id" = t."subjectId"
+      LEFT JOIN "Topic" parent ON parent."id" = t."parentId"
+      WHERE qa."userId" = ${user.id}
+        AND qa."selected" IS NOT NULL
+      GROUP BY s."id", s."name", t."id", t."name", parent."name"
+      ORDER BY "accuracy" ASC, "attempts" DESC, s."name" ASC, t."name" ASC
+      LIMIT 6
+    `,
   ]);
 
   const accuracy = attempts ? Math.round((correct / attempts) * 1000) / 10 : 0;
@@ -68,6 +101,15 @@ export default async function DashboardPage() {
     attempts: Number(subject.attempts),
     correct: Number(subject.correct),
     accuracy: subject.accuracy,
+  }));
+  const topicPerformance = topicPerformanceRows.map((topic) => ({
+    topicId: topic.topicId,
+    subjectName: topic.subjectName,
+    topicName: topic.topicName,
+    parentName: topic.parentName,
+    attempts: Number(topic.attempts),
+    correct: Number(topic.correct),
+    accuracy: topic.accuracy,
   }));
 
   return (
@@ -103,6 +145,29 @@ export default async function DashboardPage() {
                     <span style={{ fontWeight: 800 }}>{subject.accuracy}%</span>
                   </div>
                   <small style={{ color: '#64748b' }}>{subject.correct}/{subject.attempts} acertos</small>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section style={panelStyle}>
+          <h2 style={{ marginTop: 0 }}>Desempenho por assunto</h2>
+          <p style={{ color: '#64748b' }}>Os assuntos com menor taxa de acerto aparecem primeiro para mostrar onde uma revisão focada tende a render mais.</p>
+          {topicPerformance.length === 0 ? (
+            <p style={{ color: '#64748b' }}>Responda questões classificadas por assunto para gerar este diagnóstico.</p>
+          ) : (
+            <div style={{ display: 'grid', gap: 10 }}>
+              {topicPerformance.map((topic) => (
+                <article key={topic.topicId} style={{ border: '1px solid #e2e8f0', borderRadius: 14, padding: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div>
+                      <strong>{topic.parentName ? `${topic.parentName} › ${topic.topicName}` : topic.topicName}</strong>
+                      <small style={{ display: 'block', marginTop: 4, color: '#64748b' }}>{topic.subjectName}</small>
+                    </div>
+                    <span style={{ fontWeight: 800 }}>{topic.accuracy}%</span>
+                  </div>
+                  <small style={{ color: '#64748b' }}>{topic.correct}/{topic.attempts} acertos</small>
                 </article>
               ))}
             </div>
