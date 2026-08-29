@@ -31,7 +31,7 @@ export default async function DashboardPage() {
       },
     }),
     prisma.questionAttempt.aggregate({
-      where: { userId: user.id, elapsedMs: { not: null } },
+      where: { userId: user.id, selected: { not: null }, elapsedMs: { not: null } },
       _avg: { elapsedMs: true },
     }),
   ]);
