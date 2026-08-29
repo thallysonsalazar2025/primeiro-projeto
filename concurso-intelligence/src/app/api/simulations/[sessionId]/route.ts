@@ -92,6 +92,37 @@ export async function GET(
     ? calculateSimulationResult(session.questionIds.length, session.attempts)
     : null;
 
+  let reviewByQuestionId: Record<string, { selected: string | null; correct: boolean | null; correctLabels: string[] }> | null = null;
+
+  if (session.finishedAt) {
+    const answerKeys = await prisma.question.findMany({
+      where: { id: { in: session.questionIds } },
+      select: {
+        id: true,
+        choices: {
+          where: { isCorrect: true },
+          orderBy: { label: "asc" },
+          select: { label: true },
+        },
+      },
+    });
+    const attemptsById = new Map(session.attempts.map((attempt) => [attempt.questionId, attempt]));
+
+    reviewByQuestionId = Object.fromEntries(
+      answerKeys.map((question) => {
+        const attempt = attemptsById.get(question.id);
+        return [
+          question.id,
+          {
+            selected: attempt?.selected ?? null,
+            correct: attempt?.selected == null ? null : Boolean(attempt.correct),
+            correctLabels: question.choices.map((choice) => choice.label),
+          },
+        ];
+      }),
+    );
+  }
+
   return NextResponse.json({
     session: {
       id: session.id,
@@ -107,6 +138,7 @@ export async function GET(
     questions: orderedQuestions,
     attemptsByQuestionId,
     result,
+    reviewByQuestionId,
   });
 }
 
