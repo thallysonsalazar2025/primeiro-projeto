@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth";
+import { serializeAttemptHistory } from "@/lib/attempt-history";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -58,18 +59,6 @@ export async function GET(
       startedAt: session.startedAt,
       finishedAt: session.finishedAt,
     },
-    attempts: session.attempts.map((attempt, index) => ({
-      id: attempt.id,
-      sequence: index + 1,
-      questionId: attempt.question.id,
-      questionNumber: attempt.question.number,
-      subject: attempt.question.subject,
-      topic: attempt.question.topic,
-      selected: attempt.selected,
-      correct: attempt.correct,
-      answeredAt: attempt.answeredAt,
-      elapsedMs: attempt.elapsedMs,
-      confidence: attempt.confidence,
-    })),
+    attempts: serializeAttemptHistory(session.attempts),
   });
 }
