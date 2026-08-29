@@ -128,24 +128,32 @@ export default function SimulationPage() {
     if (!data?.session.canResume || finishing || saving || markingReview) return;
     setFinishing(true);
     setError('');
-    const response = await fetch(`/api/simulations/${sessionId}/finish`, { method: 'POST' });
-    const body = await response.json();
-    if (!response.ok) {
-      setError(body.error ?? 'Falha ao finalizar simulado');
-      setFinishing(false);
-      return;
-    }
 
-    const refreshedResponse = await fetch(`/api/simulations/${sessionId}`);
-    const refreshed = await refreshedResponse.json().catch(() => null) as SessionPayload | null;
-    if (refreshedResponse.ok && refreshed) {
-      setData(refreshed);
-      setResult(refreshed.result);
-    } else {
-      setResult(body.result);
-      setData((current) => current ? { ...current, result: body.result, session: { ...current.session, canResume: false } } : current);
+    try {
+      const response = await fetch(`/api/simulations/${sessionId}/finish`, { method: 'POST' });
+      const body = await response.json().catch(() => null) as { result?: Result; error?: string } | null;
+      if (!response.ok || !body?.result) {
+        throw new Error(body?.error ?? 'Falha ao finalizar simulado');
+      }
+
+      try {
+        const refreshedResponse = await fetch(`/api/simulations/${sessionId}`);
+        const refreshed = await refreshedResponse.json().catch(() => null) as SessionPayload | null;
+        if (!refreshedResponse.ok || !refreshed) {
+          throw new Error('Falha ao carregar correção detalhada');
+        }
+        setData(refreshed);
+        setResult(refreshed.result);
+      } catch {
+        setResult(body.result);
+        setData((current) => current ? { ...current, result: body.result ?? null, session: { ...current.session, canResume: false } } : current);
+        setError('Simulado finalizado. A correção detalhada poderá ser carregada ao reabrir o resultado.');
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Falha ao finalizar simulado');
+    } finally {
+      setFinishing(false);
     }
-    setFinishing(false);
   }
 
   if (error && !data) return <main style={pageStyle}><p>{error}</p><Link href="/dashboard">Voltar ao painel</Link></main>;
