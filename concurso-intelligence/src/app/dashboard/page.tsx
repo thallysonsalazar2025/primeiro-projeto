@@ -4,11 +4,18 @@ import { getCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { SimulationBuilder } from './SimulationBuilder';
 
+type SubjectPerformance = {
+  name: string;
+  attempts: bigint;
+  correct: bigint;
+  accuracy: number;
+};
+
 export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const [attempts, correct, recentLogins, subjects, recentSessions, elapsed] = await Promise.all([
+  const [attempts, correct, recentLogins, subjects, recentSessions, elapsed, subjectPerformanceRows] = await Promise.all([
     prisma.questionAttempt.count({ where: { userId: user.id } }),
     prisma.questionAttempt.count({ where: { userId: user.id, correct: true } }),
     prisma.loginHistory.findMany({ where: { userId: user.id }, orderBy: { loggedAt: 'desc' }, take: 5 }),
@@ -34,10 +41,34 @@ export default async function DashboardPage() {
       where: { userId: user.id, selected: { not: null }, elapsedMs: { not: null } },
       _avg: { elapsedMs: true },
     }),
+    prisma.$queryRaw<SubjectPerformance[]>`
+      SELECT
+        s."name" AS "name",
+        COUNT(*)::bigint AS "attempts",
+        SUM(CASE WHEN qa."correct" THEN 1 ELSE 0 END)::bigint AS "correct",
+        ROUND(
+          (SUM(CASE WHEN qa."correct" THEN 1 ELSE 0 END)::numeric / COUNT(*)::numeric) * 100,
+          1
+        )::double precision AS "accuracy"
+      FROM "QuestionAttempt" qa
+      INNER JOIN "Question" q ON q."id" = qa."questionId"
+      INNER JOIN "Subject" s ON s."id" = q."subjectId"
+      WHERE qa."userId" = ${user.id}
+        AND qa."selected" IS NOT NULL
+      GROUP BY s."id", s."name"
+      ORDER BY "accuracy" ASC, "attempts" DESC, s."name" ASC
+      LIMIT 6
+    `,
   ]);
 
   const accuracy = attempts ? Math.round((correct / attempts) * 1000) / 10 : 0;
   const averageAnswerTime = formatElapsedTime(elapsed._avg.elapsedMs);
+  const subjectPerformance = subjectPerformanceRows.map((subject) => ({
+    name: subject.name,
+    attempts: Number(subject.attempts),
+    correct: Number(subject.correct),
+    accuracy: subject.accuracy,
+  }));
 
   return (
     <main style={{ minHeight: '100vh', background: '#f8fafc', padding: 24 }}>
@@ -56,6 +87,26 @@ export default async function DashboardPage() {
           <Card title="Acertos" value={String(correct)} hint="Questões corretas" />
           <Card title="Questões únicas" value={String(subjects.length)} hint="Cobertura efetiva" />
           <Card title="Tempo médio" value={averageAnswerTime} hint="Por questão respondida" />
+        </section>
+
+        <section style={panelStyle}>
+          <h2 style={{ marginTop: 0 }}>Desempenho por disciplina</h2>
+          <p style={{ color: '#64748b' }}>Disciplinas com menor taxa de acerto aparecem primeiro para orientar a próxima sessão de estudo.</p>
+          {subjectPerformance.length === 0 ? (
+            <p style={{ color: '#64748b' }}>Responda questões classificadas por disciplina para gerar este diagnóstico.</p>
+          ) : (
+            <div style={{ display: 'grid', gap: 10 }}>
+              {subjectPerformance.map((subject) => (
+                <article key={subject.name} style={{ border: '1px solid #e2e8f0', borderRadius: 14, padding: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <strong>{subject.name}</strong>
+                    <span style={{ fontWeight: 800 }}>{subject.accuracy}%</span>
+                  </div>
+                  <small style={{ color: '#64748b' }}>{subject.correct}/{subject.attempts} acertos</small>
+                </article>
+              ))}
+            </div>
+          )}
         </section>
 
         <section style={panelStyle}>
