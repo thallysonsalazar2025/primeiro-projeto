@@ -12,8 +12,10 @@ type SubjectPerformance = {
 };
 
 type TopicPerformance = {
+  topicId: string;
   subjectName: string;
   topicName: string;
+  parentName: string | null;
   attempts: bigint;
   correct: bigint;
   accuracy: number;
@@ -69,8 +71,10 @@ export default async function DashboardPage() {
     `,
     prisma.$queryRaw<TopicPerformance[]>`
       SELECT
+        t."id" AS "topicId",
         s."name" AS "subjectName",
         t."name" AS "topicName",
+        parent."name" AS "parentName",
         COUNT(*)::bigint AS "attempts",
         SUM(CASE WHEN qa."correct" THEN 1 ELSE 0 END)::bigint AS "correct",
         ROUND(
@@ -79,11 +83,12 @@ export default async function DashboardPage() {
         )::double precision AS "accuracy"
       FROM "QuestionAttempt" qa
       INNER JOIN "Question" q ON q."id" = qa."questionId"
-      INNER JOIN "Subject" s ON s."id" = q."subjectId"
       INNER JOIN "Topic" t ON t."id" = q."topicId"
+      INNER JOIN "Subject" s ON s."id" = t."subjectId"
+      LEFT JOIN "Topic" parent ON parent."id" = t."parentId"
       WHERE qa."userId" = ${user.id}
         AND qa."selected" IS NOT NULL
-      GROUP BY s."id", s."name", t."id", t."name"
+      GROUP BY s."id", s."name", t."id", t."name", parent."name"
       ORDER BY "accuracy" ASC, "attempts" DESC, s."name" ASC, t."name" ASC
       LIMIT 6
     `,
@@ -98,8 +103,10 @@ export default async function DashboardPage() {
     accuracy: subject.accuracy,
   }));
   const topicPerformance = topicPerformanceRows.map((topic) => ({
+    topicId: topic.topicId,
     subjectName: topic.subjectName,
     topicName: topic.topicName,
+    parentName: topic.parentName,
     attempts: Number(topic.attempts),
     correct: Number(topic.correct),
     accuracy: topic.accuracy,
@@ -152,10 +159,10 @@ export default async function DashboardPage() {
           ) : (
             <div style={{ display: 'grid', gap: 10 }}>
               {topicPerformance.map((topic) => (
-                <article key={`${topic.subjectName}:${topic.topicName}`} style={{ border: '1px solid #e2e8f0', borderRadius: 14, padding: 14 }}>
+                <article key={topic.topicId} style={{ border: '1px solid #e2e8f0', borderRadius: 14, padding: 14 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
                     <div>
-                      <strong>{topic.topicName}</strong>
+                      <strong>{topic.parentName ? `${topic.parentName} › ${topic.topicName}` : topic.topicName}</strong>
                       <small style={{ display: 'block', marginTop: 4, color: '#64748b' }}>{topic.subjectName}</small>
                     </div>
                     <span style={{ fontWeight: 800 }}>{topic.accuracy}%</span>
