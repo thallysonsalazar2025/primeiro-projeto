@@ -11,6 +11,7 @@ type SessionPayload = {
   session: { id: string; questionCount: number; answeredCount: number; reviewQuestionIds: string[]; canResume: boolean; positionName: string | null };
   questions: Question[];
   attemptsByQuestionId: Record<string, { selected: string | null; elapsedMs: number | null }>;
+  result: Result | null;
 };
 
 export default function SimulationPage() {
@@ -34,6 +35,7 @@ export default function SimulationPage() {
       .then((payload: SessionPayload) => {
         activeQuestionStartedAt.current = Date.now();
         setData(payload);
+        setResult(payload.result);
       })
       .catch((cause: Error) => setError(cause.message));
   }, [sessionId]);
@@ -132,7 +134,7 @@ export default function SimulationPage() {
       return;
     }
     setResult(body.result);
-    setData((current) => current ? { ...current, session: { ...current.session, canResume: false } } : current);
+    setData((current) => current ? { ...current, result: body.result, session: { ...current.session, canResume: false } } : current);
     setFinishing(false);
   }
 

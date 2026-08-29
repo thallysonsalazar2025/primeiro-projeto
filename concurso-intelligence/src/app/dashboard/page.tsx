@@ -130,11 +130,9 @@ export default async function DashboardPage() {
                         <span style={{ color: resumable ? '#047857' : '#64748b', fontWeight: 700 }}>
                           {resumable ? 'Em andamento' : 'Finalizado'}
                         </span>
-                        {resumable && (
-                          <Link href={`/simulations/${session.id}`} style={resumeStyle}>
-                            Retomar prova
-                          </Link>
-                        )}
+                        <Link href={`/simulations/${session.id}`} style={resumeStyle}>
+                          {resumable ? 'Retomar prova' : 'Ver resultado'}
+                        </Link>
                       </div>
                     </div>
                   </article>
