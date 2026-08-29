@@ -55,6 +55,7 @@ test('creates, resumes, reviews and finishes a simulation', async ({ page }) => 
     await page.getByRole('button', { name: 'Criar conta' }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/);
+    await page.getByLabel('Banca').selectOption(board.id);
     await page.getByLabel('Quantidade').fill('1');
     await page.getByRole('button', { name: 'Começar simulado' }).click();
 
