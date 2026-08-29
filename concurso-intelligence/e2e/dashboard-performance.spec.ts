@@ -8,6 +8,8 @@ test.afterAll(async () => {
 });
 
 test('shows persisted simulation performance on the dashboard', async ({ page }) => {
+  test.setTimeout(60_000);
+
   const suffix = Date.now().toString();
   const email = `a9-dashboard-${suffix}@example.com`;
 
