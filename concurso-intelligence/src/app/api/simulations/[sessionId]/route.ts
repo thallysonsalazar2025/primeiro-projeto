@@ -99,6 +99,7 @@ export async function GET(
       where: { id: { in: session.questionIds } },
       select: {
         id: true,
+        status: true,
         choices: {
           where: { isCorrect: true },
           orderBy: { label: "asc" },
@@ -117,7 +118,7 @@ export async function GET(
           question.id,
           {
             selected,
-            correct: selected === null ? null : correctLabels.includes(selected),
+            correct: question.status === "ANNULLED" || selected === null ? null : correctLabels.includes(selected),
             correctLabels,
           },
         ];
