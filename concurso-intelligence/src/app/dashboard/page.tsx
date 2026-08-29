@@ -8,7 +8,7 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const [attempts, correct, recentLogins, subjects, recentSessions, elapsed] = await Promise.all([
+  const [attempts, correct, recentLogins, subjects, recentSessions, elapsed, subjectAttempts] = await Promise.all([
     prisma.questionAttempt.count({ where: { userId: user.id } }),
     prisma.questionAttempt.count({ where: { userId: user.id, correct: true } }),
     prisma.loginHistory.findMany({ where: { userId: user.id }, orderBy: { loggedAt: 'desc' }, take: 5 }),
@@ -34,10 +34,15 @@ export default async function DashboardPage() {
       where: { userId: user.id, selected: { not: null }, elapsedMs: { not: null } },
       _avg: { elapsedMs: true },
     }),
+    prisma.questionAttempt.findMany({
+      where: { userId: user.id, selected: { not: null }, question: { subjectId: { not: null } } },
+      select: { correct: true, question: { select: { subject: { select: { name: true } } } } },
+    }),
   ]);
 
   const accuracy = attempts ? Math.round((correct / attempts) * 1000) / 10 : 0;
   const averageAnswerTime = formatElapsedTime(elapsed._avg.elapsedMs);
+  const subjectPerformance = summarizeSubjectPerformance(subjectAttempts);
 
   return (
     <main style={{ minHeight: '100vh', background: '#f8fafc', padding: 24 }}>
@@ -56,6 +61,26 @@ export default async function DashboardPage() {
           <Card title="Acertos" value={String(correct)} hint="Questões corretas" />
           <Card title="Questões únicas" value={String(subjects.length)} hint="Cobertura efetiva" />
           <Card title="Tempo médio" value={averageAnswerTime} hint="Por questão respondida" />
+        </section>
+
+        <section style={panelStyle}>
+          <h2 style={{ marginTop: 0 }}>Desempenho por disciplina</h2>
+          <p style={{ color: '#64748b' }}>Disciplinas com menor taxa de acerto aparecem primeiro para orientar a próxima sessão de estudo.</p>
+          {subjectPerformance.length === 0 ? (
+            <p style={{ color: '#64748b' }}>Responda questões classificadas por disciplina para gerar este diagnóstico.</p>
+          ) : (
+            <div style={{ display: 'grid', gap: 10 }}>
+              {subjectPerformance.map((subject) => (
+                <article key={subject.name} style={{ border: '1px solid #e2e8f0', borderRadius: 14, padding: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <strong>{subject.name}</strong>
+                    <span style={{ fontWeight: 800 }}>{subject.accuracy}%</span>
+                  </div>
+                  <small style={{ color: '#64748b' }}>{subject.correct}/{subject.attempts} acertos</small>
+                </article>
+              ))}
+            </div>
+          )}
         </section>
 
         <section style={panelStyle}>
@@ -118,6 +143,28 @@ export default async function DashboardPage() {
       </div>
     </main>
   );
+}
+
+function summarizeSubjectPerformance(attempts: Array<{ correct: boolean; question: { subject: { name: string } | null } }>) {
+  const bySubject = new Map<string, { correct: number; attempts: number }>();
+
+  for (const attempt of attempts) {
+    const subjectName = attempt.question.subject?.name;
+    if (!subjectName) continue;
+    const current = bySubject.get(subjectName) ?? { correct: 0, attempts: 0 };
+    current.attempts += 1;
+    if (attempt.correct) current.correct += 1;
+    bySubject.set(subjectName, current);
+  }
+
+  return [...bySubject.entries()]
+    .map(([name, stats]) => ({
+      name,
+      ...stats,
+      accuracy: Math.round((stats.correct / stats.attempts) * 1000) / 10,
+    }))
+    .sort((left, right) => left.accuracy - right.accuracy || right.attempts - left.attempts || left.name.localeCompare(right.name))
+    .slice(0, 6);
 }
 
 function formatElapsedTime(elapsedMs: number | null) {
