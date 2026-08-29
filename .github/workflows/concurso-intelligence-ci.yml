@@ -4,12 +4,16 @@ on:
   pull_request:
     paths:
       - "concurso-intelligence/**"
+      - "index.html"
+      - "questions-*.js"
       - ".github/workflows/concurso-intelligence-ci.yml"
   push:
     branches:
       - master
     paths:
       - "concurso-intelligence/**"
+      - "index.html"
+      - "questions-*.js"
       - ".github/workflows/concurso-intelligence-ci.yml"
 
 permissions:
