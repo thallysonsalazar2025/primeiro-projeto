@@ -4,11 +4,18 @@ import { getCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { SimulationBuilder } from './SimulationBuilder';
 
+type SubjectPerformance = {
+  name: string;
+  attempts: bigint;
+  correct: bigint;
+  accuracy: number;
+};
+
 export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const [attempts, correct, recentLogins, subjects, recentSessions, elapsed, subjectAttempts] = await Promise.all([
+  const [attempts, correct, recentLogins, subjects, recentSessions, elapsed, subjectPerformanceRows] = await Promise.all([
     prisma.questionAttempt.count({ where: { userId: user.id } }),
     prisma.questionAttempt.count({ where: { userId: user.id, correct: true } }),
     prisma.loginHistory.findMany({ where: { userId: user.id }, orderBy: { loggedAt: 'desc' }, take: 5 }),
@@ -34,15 +41,34 @@ export default async function DashboardPage() {
       where: { userId: user.id, selected: { not: null }, elapsedMs: { not: null } },
       _avg: { elapsedMs: true },
     }),
-    prisma.questionAttempt.findMany({
-      where: { userId: user.id, selected: { not: null }, question: { subjectId: { not: null } } },
-      select: { correct: true, question: { select: { subject: { select: { name: true } } } } },
-    }),
+    prisma.$queryRaw<SubjectPerformance[]>`
+      SELECT
+        s."name" AS "name",
+        COUNT(*)::bigint AS "attempts",
+        SUM(CASE WHEN qa."correct" THEN 1 ELSE 0 END)::bigint AS "correct",
+        ROUND(
+          (SUM(CASE WHEN qa."correct" THEN 1 ELSE 0 END)::numeric / COUNT(*)::numeric) * 100,
+          1
+        )::double precision AS "accuracy"
+      FROM "QuestionAttempt" qa
+      INNER JOIN "Question" q ON q."id" = qa."questionId"
+      INNER JOIN "Subject" s ON s."id" = q."subjectId"
+      WHERE qa."userId" = ${user.id}
+        AND qa."selected" IS NOT NULL
+      GROUP BY s."id", s."name"
+      ORDER BY "accuracy" ASC, "attempts" DESC, s."name" ASC
+      LIMIT 6
+    `,
   ]);
 
   const accuracy = attempts ? Math.round((correct / attempts) * 1000) / 10 : 0;
   const averageAnswerTime = formatElapsedTime(elapsed._avg.elapsedMs);
-  const subjectPerformance = summarizeSubjectPerformance(subjectAttempts);
+  const subjectPerformance = subjectPerformanceRows.map((subject) => ({
+    name: subject.name,
+    attempts: Number(subject.attempts),
+    correct: Number(subject.correct),
+    accuracy: subject.accuracy,
+  }));
 
   return (
     <main style={{ minHeight: '100vh', background: '#f8fafc', padding: 24 }}>
@@ -143,28 +169,6 @@ export default async function DashboardPage() {
       </div>
     </main>
   );
-}
-
-function summarizeSubjectPerformance(attempts: Array<{ correct: boolean; question: { subject: { name: string } | null } }>) {
-  const bySubject = new Map<string, { correct: number; attempts: number }>();
-
-  for (const attempt of attempts) {
-    const subjectName = attempt.question.subject?.name;
-    if (!subjectName) continue;
-    const current = bySubject.get(subjectName) ?? { correct: 0, attempts: 0 };
-    current.attempts += 1;
-    if (attempt.correct) current.correct += 1;
-    bySubject.set(subjectName, current);
-  }
-
-  return [...bySubject.entries()]
-    .map(([name, stats]) => ({
-      name,
-      ...stats,
-      accuracy: Math.round((stats.correct / stats.attempts) * 1000) / 10,
-    }))
-    .sort((left, right) => left.accuracy - right.accuracy || right.attempts - left.attempts || left.name.localeCompare(right.name))
-    .slice(0, 6);
 }
 
 function formatElapsedTime(elapsedMs: number | null) {
