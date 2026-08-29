@@ -46,6 +46,18 @@ test('annulled questions must not carry a correct choice', () => {
   assert.equal(validateQuestionImportBatch(batch), batch);
 });
 
+test('rejects unsupported question statuses before persistence', () => {
+  const batch = validBatch();
+  (batch.questions[0] as { status?: string }).status = 'DRAFT';
+  assert.throws(() => validateQuestionImportBatch(batch), /status inválido/);
+});
+
+test('rejects a topic without its required subject', () => {
+  const batch = validBatch();
+  batch.questions[0].topic = 'Arquitetura';
+  assert.throws(() => validateQuestionImportBatch(batch), /topic requer subject/);
+});
+
 test('rejects non-http provenance URLs', () => {
   const batch = validBatch();
   batch.source.url = 'file:///tmp/prova.pdf';
