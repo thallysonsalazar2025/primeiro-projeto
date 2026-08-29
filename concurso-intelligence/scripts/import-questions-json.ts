@@ -64,6 +64,10 @@ async function main() {
   let updated = 0;
 
   for (const question of batch.questions) {
+    const hasSubject = Object.prototype.hasOwnProperty.call(question, 'subject');
+    const hasTopic = Object.prototype.hasOwnProperty.call(question, 'topic');
+    const hasExplanation = Object.prototype.hasOwnProperty.call(question, 'explanation');
+
     const subject = question.subject?.trim()
       ? await prisma.subject.upsert({
           where: { name: question.subject.trim() },
@@ -86,7 +90,10 @@ async function main() {
       examTitle: batch.exam.title,
       number: question.number,
       statement: question.statement,
-      choices: question.choices.map(({ label, text }) => ({ label, text })),
+      choices: question.choices.map(({ label, text }) => ({
+        label: label.trim().toUpperCase(),
+        text,
+      })),
     });
 
     const existing = await prisma.question.findUnique({
@@ -98,9 +105,9 @@ async function main() {
       where: { contentFingerprint: fingerprint },
       update: {
         status: QuestionStatus[question.status ?? 'ACTIVE'],
-        subjectId: subject?.id ?? null,
-        topicId: topic?.id ?? null,
-        explanation: question.explanation?.trim() || null,
+        ...(hasSubject ? { subjectId: subject?.id ?? null } : {}),
+        ...(hasTopic ? { topicId: topic?.id ?? null } : {}),
+        ...(hasExplanation ? { explanation: question.explanation?.trim() || null } : {}),
         sourceUrl: batch.source.url,
         sourcePage: question.sourcePage ?? null,
         sourceLabel: question.sourceLabel?.trim() || null,
@@ -160,6 +167,7 @@ async function main() {
           license: batch.source.license?.trim() || null,
           sourceHash: batch.source.sourceHash?.trim() || null,
           notes: batch.source.notes?.trim() || null,
+          retrievedAt: verifiedAt,
         },
       });
     } else {
@@ -171,6 +179,7 @@ async function main() {
           license: batch.source.license?.trim() || null,
           sourceHash: batch.source.sourceHash?.trim() || null,
           notes: batch.source.notes?.trim() || null,
+          retrievedAt: verifiedAt,
         },
       });
     }
