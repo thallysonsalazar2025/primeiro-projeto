@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { nextReviewQuestionIds } from "@/lib/review-markers";
+import { calculateSimulationResult } from "@/lib/simulation-result";
 
 export async function GET(
   _request: Request,
@@ -87,6 +88,10 @@ export async function GET(
     ]),
   );
 
+  const result = session.finishedAt
+    ? calculateSimulationResult(session.questionIds.length, session.attempts)
+    : null;
+
   return NextResponse.json({
     session: {
       id: session.id,
@@ -101,6 +106,7 @@ export async function GET(
     },
     questions: orderedQuestions,
     attemptsByQuestionId,
+    result,
   });
 }
 
