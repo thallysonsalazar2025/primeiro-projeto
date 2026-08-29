@@ -208,6 +208,7 @@ export default function SimulationPage() {
           {data.questions.map((question, index) => {
             const markedForReview = reviewQuestionIds.has(question.id);
             const correction = data.reviewByQuestionId?.[question.id];
+            const annulled = correction?.correct === null && correction.selected !== null && correction.correctLabels.length === 0;
             return (
               <article
                 id={`question-${question.id}`}
@@ -244,9 +245,9 @@ export default function SimulationPage() {
                 {saving === question.id && <small>Salvando...</small>}
                 {!data.session.canResume && correction && (
                   <div style={correctionStyle}>
-                    <strong>{correction.correct === true ? '✓ Correta' : correction.correct === false ? '✕ Incorreta' : 'Em branco'}</strong>
+                    <strong>{annulled ? 'Questão anulada' : correction.correct === true ? '✓ Correta' : correction.correct === false ? '✕ Incorreta' : 'Em branco'}</strong>
                     <span>Sua resposta: {correction.selected ?? 'nenhuma'}</span>
-                    <span>Gabarito: {correction.correctLabels.length > 0 ? correction.correctLabels.join(', ') : 'indisponível'}</span>
+                    <span>Gabarito: {annulled ? 'questão anulada' : correction.correctLabels.length > 0 ? correction.correctLabels.join(', ') : 'indisponível'}</span>
                   </div>
                 )}
               </article>
