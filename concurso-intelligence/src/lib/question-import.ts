@@ -6,8 +6,15 @@ export const QUESTION_SOURCE_TYPES = [
   'MANUAL',
 ] as const;
 
+export const IMPORTED_QUESTION_STATUSES = [
+  'ACTIVE',
+  'ANNULLED',
+  'OUTDATED',
+  'REVIEW_REQUIRED',
+] as const;
+
 export type QuestionSourceType = (typeof QUESTION_SOURCE_TYPES)[number];
-export type ImportedQuestionStatus = 'ACTIVE' | 'ANNULLED' | 'OUTDATED' | 'REVIEW_REQUIRED';
+export type ImportedQuestionStatus = (typeof IMPORTED_QUESTION_STATUSES)[number];
 
 export type ImportedChoice = {
   label: string;
@@ -89,6 +96,15 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
     }
     if (question.choices.length < 2) throw new Error(`${prefix}.choices deve conter ao menos duas alternativas`);
 
+    const status = question.status ?? 'ACTIVE';
+    if (!IMPORTED_QUESTION_STATUSES.includes(status)) {
+      throw new Error(`${prefix}.status inválido: ${String(status)}`);
+    }
+
+    if (question.topic?.trim() && !question.subject?.trim()) {
+      throw new Error(`${prefix}.topic requer subject`);
+    }
+
     const labels = new Set<string>();
     for (const choice of question.choices) {
       requireNonBlank(choice.label, `${prefix}.choices.label`);
@@ -98,7 +114,6 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
       labels.add(normalizedLabel);
     }
 
-    const status = question.status ?? 'ACTIVE';
     const correctCount = question.choices.filter((choice) => choice.isCorrect).length;
     if (status === 'ANNULLED') {
       if (correctCount !== 0) throw new Error(`${prefix} anulada não pode possuir alternativa correta`);
