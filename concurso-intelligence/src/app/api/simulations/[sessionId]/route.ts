@@ -111,12 +111,14 @@ export async function GET(
     reviewByQuestionId = Object.fromEntries(
       answerKeys.map((question) => {
         const attempt = attemptsById.get(question.id);
+        const correctLabels = question.choices.map((choice) => choice.label);
+        const selected = attempt?.selected ?? null;
         return [
           question.id,
           {
-            selected: attempt?.selected ?? null,
-            correct: attempt?.selected == null ? null : Boolean(attempt.correct),
-            correctLabels: question.choices.map((choice) => choice.label),
+            selected,
+            correct: selected === null ? null : correctLabels.includes(selected),
+            correctLabels,
           },
         ];
       }),
