@@ -31,24 +31,33 @@ async function main() {
     },
   });
 
-  const exam =
-    (await prisma.exam.findFirst({
-      where: {
-        boardId: board.id,
-        title: batch.exam.title.trim(),
-        year: batch.exam.year,
-      },
-    })) ??
-    (await prisma.exam.create({
-      data: {
-        boardId: board.id,
-        title: batch.exam.title.trim(),
-        year: batch.exam.year,
-        sourceUrl: batch.source.url,
-        sourceDocument: batch.exam.sourceDocument?.trim() || null,
-        sourceSha256: batch.exam.sourceSha256?.trim() || null,
-      },
-    }));
+  const existingExam = await prisma.exam.findFirst({
+    where: {
+      boardId: board.id,
+      title: batch.exam.title.trim(),
+      year: batch.exam.year,
+    },
+  });
+
+  const exam = existingExam
+    ? await prisma.exam.update({
+        where: { id: existingExam.id },
+        data: {
+          sourceUrl: batch.source.url,
+          sourceDocument: batch.exam.sourceDocument?.trim() || null,
+          sourceSha256: batch.exam.sourceSha256?.trim() || null,
+        },
+      })
+    : await prisma.exam.create({
+        data: {
+          boardId: board.id,
+          title: batch.exam.title.trim(),
+          year: batch.exam.year,
+          sourceUrl: batch.source.url,
+          sourceDocument: batch.exam.sourceDocument?.trim() || null,
+          sourceSha256: batch.exam.sourceSha256?.trim() || null,
+        },
+      });
 
   const sourceType = SourceType[batch.source.type];
   let created = 0;
@@ -114,6 +123,7 @@ async function main() {
       },
     });
 
+    const currentLabels = question.choices.map((choice) => choice.label.trim().toUpperCase());
     for (const choice of question.choices) {
       const label = choice.label.trim().toUpperCase();
       await prisma.questionChoice.upsert({
@@ -128,6 +138,13 @@ async function main() {
       });
     }
 
+    await prisma.questionChoice.deleteMany({
+      where: {
+        questionId: saved.id,
+        label: { notIn: currentLabels },
+      },
+    });
+
     const provenance = await prisma.questionProvenance.findFirst({
       where: {
         questionId: saved.id,
@@ -136,7 +153,16 @@ async function main() {
       },
     });
 
-    if (!provenance) {
+    if (provenance) {
+      await prisma.questionProvenance.update({
+        where: { id: provenance.id },
+        data: {
+          license: batch.source.license?.trim() || null,
+          sourceHash: batch.source.sourceHash?.trim() || null,
+          notes: batch.source.notes?.trim() || null,
+        },
+      });
+    } else {
       await prisma.questionProvenance.create({
         data: {
           questionId: saved.id,
