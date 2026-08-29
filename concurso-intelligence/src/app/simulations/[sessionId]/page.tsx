@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 type Choice = { id: string; label: string; text: string };
 type Question = { id: string; number: number | null; statement: string; choices: Choice[]; subject: { name: string } | null };
@@ -10,7 +10,7 @@ type Result = { totalQuestions: number; answered: number; correct: number; incor
 type SessionPayload = {
   session: { id: string; questionCount: number; answeredCount: number; reviewQuestionIds: string[]; canResume: boolean; positionName: string | null };
   questions: Question[];
-  attemptsByQuestionId: Record<string, { selected: string | null }>;
+  attemptsByQuestionId: Record<string, { selected: string | null; elapsedMs: number | null }>;
 };
 
 export default function SimulationPage() {
@@ -23,6 +23,7 @@ export default function SimulationPage() {
   const [markingReview, setMarkingReview] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const activeQuestionStartedAt = useRef(Date.now());
 
   useEffect(() => {
     fetch(`/api/simulations/${sessionId}`)
@@ -30,7 +31,10 @@ export default function SimulationPage() {
         if (!response.ok) throw new Error((await response.json()).error ?? 'Falha ao carregar simulado');
         return response.json();
       })
-      .then(setData)
+      .then((payload: SessionPayload) => {
+        activeQuestionStartedAt.current = Date.now();
+        setData(payload);
+      })
       .catch((cause: Error) => setError(cause.message));
   }, [sessionId]);
 
@@ -45,31 +49,46 @@ export default function SimulationPage() {
 
   const reviewQuestionIds = useMemo(() => new Set(data?.session.reviewQuestionIds ?? []), [data]);
 
+  function activateQuestion(index: number) {
+    if (!data) return 0;
+    const boundedIndex = Math.max(0, Math.min(index, data.questions.length - 1));
+    if (boundedIndex !== currentQuestionIndex) {
+      activeQuestionStartedAt.current = Date.now();
+      setCurrentQuestionIndex(boundedIndex);
+    }
+    return boundedIndex;
+  }
+
   function goToQuestion(index: number) {
     if (!data) return;
-    const boundedIndex = Math.max(0, Math.min(index, data.questions.length - 1));
-    setCurrentQuestionIndex(boundedIndex);
+    const boundedIndex = activateQuestion(index);
     document.getElementById(`question-${data.questions[boundedIndex].id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   async function answer(questionId: string, selected: string) {
     if (!data?.session.canResume) return;
+    const startedAt = activeQuestionStartedAt.current;
+    const previousElapsedMs = data.attemptsByQuestionId[questionId]?.elapsedMs ?? 0;
+    const elapsedMs = previousElapsedMs + Math.max(0, Date.now() - startedAt);
     setSaving(questionId);
     setError('');
     const response = await fetch(`/api/simulations/${sessionId}/answers`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId, selected }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId, selected, elapsedMs }),
     });
+    const body = await response.json().catch(() => null);
     if (!response.ok) {
-      const body = await response.json();
-      setError(body.error ?? 'Falha ao salvar resposta');
+      setError(body?.error ?? 'Falha ao salvar resposta');
       setSaving(null);
       return;
     }
     setData((current) => current ? {
       ...current,
       session: { ...current.session, answeredCount: current.attemptsByQuestionId[questionId]?.selected ? current.session.answeredCount : current.session.answeredCount + 1 },
-      attemptsByQuestionId: { ...current.attemptsByQuestionId, [questionId]: { selected } },
+      attemptsByQuestionId: { ...current.attemptsByQuestionId, [questionId]: { selected, elapsedMs: body?.attempt?.elapsedMs ?? elapsedMs } },
     } : current);
+    if (activeQuestionStartedAt.current === startedAt) {
+      activeQuestionStartedAt.current = Date.now();
+    }
     setSaving(null);
   }
 
@@ -173,8 +192,9 @@ export default function SimulationPage() {
                 id={`question-${question.id}`}
                 key={question.id}
                 style={cardStyle}
-                onFocusCapture={() => setCurrentQuestionIndex(index)}
-                onClick={() => setCurrentQuestionIndex(index)}
+                onPointerDown={() => activateQuestion(index)}
+                onFocusCapture={() => activateQuestion(index)}
+                onClick={() => activateQuestion(index)}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                   <p style={{ color: '#4f46e5', fontWeight: 800, margin: 0 }}>Questão {question.number ?? index + 1}{question.subject ? ` · ${question.subject.name}` : ''}</p>
