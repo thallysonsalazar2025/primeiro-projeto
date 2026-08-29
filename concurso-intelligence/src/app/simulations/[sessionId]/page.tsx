@@ -7,11 +7,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 type Choice = { id: string; label: string; text: string };
 type Question = { id: string; number: number | null; statement: string; choices: Choice[]; subject: { name: string } | null };
 type Result = { totalQuestions: number; answered: number; correct: number; incorrect: number; blank: number; accuracy: number; elapsedMs: number };
+type ReviewDetail = { selected: string | null; correct: boolean | null; correctLabels: string[] };
 type SessionPayload = {
   session: { id: string; questionCount: number; answeredCount: number; reviewQuestionIds: string[]; canResume: boolean; positionName: string | null };
   questions: Question[];
   attemptsByQuestionId: Record<string, { selected: string | null; elapsedMs: number | null }>;
   result: Result | null;
+  reviewByQuestionId: Record<string, ReviewDetail> | null;
 };
 
 export default function SimulationPage() {
@@ -126,16 +128,32 @@ export default function SimulationPage() {
     if (!data?.session.canResume || finishing || saving || markingReview) return;
     setFinishing(true);
     setError('');
-    const response = await fetch(`/api/simulations/${sessionId}/finish`, { method: 'POST' });
-    const body = await response.json();
-    if (!response.ok) {
-      setError(body.error ?? 'Falha ao finalizar simulado');
+
+    try {
+      const response = await fetch(`/api/simulations/${sessionId}/finish`, { method: 'POST' });
+      const body = await response.json().catch(() => null) as { result?: Result; error?: string } | null;
+      if (!response.ok || !body?.result) {
+        throw new Error(body?.error ?? 'Falha ao finalizar simulado');
+      }
+
+      try {
+        const refreshedResponse = await fetch(`/api/simulations/${sessionId}`);
+        const refreshed = await refreshedResponse.json().catch(() => null) as SessionPayload | null;
+        if (!refreshedResponse.ok || !refreshed) {
+          throw new Error('Falha ao carregar correção detalhada');
+        }
+        setData(refreshed);
+        setResult(refreshed.result);
+      } catch {
+        setResult(body.result);
+        setData((current) => current ? { ...current, result: body.result ?? null, session: { ...current.session, canResume: false } } : current);
+        setError('Simulado finalizado. A correção detalhada poderá ser carregada ao reabrir o resultado.');
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Falha ao finalizar simulado');
+    } finally {
       setFinishing(false);
-      return;
     }
-    setResult(body.result);
-    setData((current) => current ? { ...current, result: body.result, session: { ...current.session, canResume: false } } : current);
-    setFinishing(false);
   }
 
   if (error && !data) return <main style={pageStyle}><p>{error}</p><Link href="/dashboard">Voltar ao painel</Link></main>;
@@ -189,6 +207,8 @@ export default function SimulationPage() {
         <div style={{ display: 'grid', gap: 18 }}>
           {data.questions.map((question, index) => {
             const markedForReview = reviewQuestionIds.has(question.id);
+            const correction = data.reviewByQuestionId?.[question.id];
+            const annulled = correction?.correct === null && correction.selected !== null && correction.correctLabels.length === 0;
             return (
               <article
                 id={`question-${question.id}`}
@@ -223,6 +243,13 @@ export default function SimulationPage() {
                   })}
                 </div>
                 {saving === question.id && <small>Salvando...</small>}
+                {!data.session.canResume && correction && (
+                  <div style={correctionStyle}>
+                    <strong>{annulled ? 'Questão anulada' : correction.correct === true ? '✓ Correta' : correction.correct === false ? '✕ Incorreta' : 'Em branco'}</strong>
+                    <span>Sua resposta: {correction.selected ?? 'nenhuma'}</span>
+                    <span>Gabarito: {annulled ? 'questão anulada' : correction.correctLabels.length > 0 ? correction.correctLabels.join(', ') : 'indisponível'}</span>
+                  </div>
+                )}
               </article>
             );
           })}
@@ -242,6 +269,7 @@ export default function SimulationPage() {
 const pageStyle = { minHeight: '100vh', background: '#f8fafc', padding: 24 };
 const cardStyle = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 18, padding: 20, scrollMarginTop: 16 };
 const resultStyle = { background: '#fff', border: '1px solid #cbd5e1', borderRadius: 18, padding: 20, marginBottom: 18 };
+const correctionStyle = { display: 'flex', gap: 12, flexWrap: 'wrap' as const, marginTop: 14, padding: 12, borderRadius: 10, background: '#f8fafc', border: '1px solid #cbd5e1' };
 const navigatorStyle = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: 16, marginBottom: 18 };
 const questionGridStyle = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(44px, 1fr))', gap: 8, margin: '12px 0 8px' };
 const questionButtonStyle = { minHeight: 44, borderRadius: 10, cursor: 'pointer' };
