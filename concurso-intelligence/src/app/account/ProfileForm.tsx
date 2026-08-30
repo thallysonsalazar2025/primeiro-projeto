@@ -16,22 +16,27 @@ export function ProfileForm({ email, initialName }: { email: string; initialName
     setError('');
     setLoading(true);
 
-    const response = await fetch('/api/account/profile', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name }),
-    });
-    const body = await response.json();
-    setLoading(false);
+    try {
+      const response = await fetch('/api/account/profile', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const body = await response.json().catch(() => ({}));
 
-    if (!response.ok) {
-      setError(body.error ?? 'Não foi possível atualizar o perfil.');
-      return;
+      if (!response.ok) {
+        setError(body.error ?? 'Não foi possível atualizar o perfil.');
+        return;
+      }
+
+      setName(body.user?.name ?? '');
+      setMessage('Perfil atualizado.');
+      router.refresh();
+    } catch {
+      setError('Não foi possível atualizar o perfil. Tente novamente.');
+    } finally {
+      setLoading(false);
     }
-
-    setName(body.user.name ?? '');
-    setMessage('Perfil atualizado.');
-    router.refresh();
   }
 
   return (
