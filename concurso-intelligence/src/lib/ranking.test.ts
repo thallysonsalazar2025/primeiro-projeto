@@ -26,24 +26,40 @@ test('rejects an empty official distribution instead of fabricating a ranking', 
   assert.throws(() => estimateFromOfficialRanking(70, []), /Official ranking sample is empty/);
 });
 
-test('estimates a future contest as a range and reports model confidence', () => {
-  const rows = Array.from({ length: 100 }, (_, index) => ({ score: index + 1 }));
+test('weights distinct historical distributions by board, cargo and subject similarity', () => {
   const history: HistoricalContest[] = [
-    { contestId: 'fgv-1', board: 'FGV', cargoFamily: 'TI', subjectSimilarity: 1, rows },
-    { contestId: 'fgv-2', board: 'FGV', cargoFamily: 'TI', subjectSimilarity: 0.9, rows },
-    { contestId: 'fgv-3', board: 'FGV', cargoFamily: 'TI', subjectSimilarity: 0.8, rows },
+    {
+      contestId: 'fgv-ti',
+      board: 'FGV',
+      cargoFamily: 'TI',
+      subjectSimilarity: 1,
+      rows: Array.from({ length: 100 }, (_, index) => ({ score: index + 1 })),
+    },
+    {
+      contestId: 'cespe-ti',
+      board: 'CESPE',
+      cargoFamily: 'TI',
+      subjectSimilarity: 0.8,
+      rows: Array.from({ length: 60 }, (_, index) => ({ score: index + 41 })),
+    },
+    {
+      contestId: 'fgv-admin',
+      board: 'FGV',
+      cargoFamily: 'ADMIN',
+      subjectSimilarity: 0.5,
+      rows: Array.from({ length: 40 }, (_, index) => ({ score: index + 61 })),
+    },
   ];
 
   const result = estimateForNewContest(80, 1_000, 'FGV', 'TI', history);
 
   assert.equal(result.method, 'historical-board-model');
-  assert.equal(result.sampleSize, 300);
+  assert.equal(result.sampleSize, 200);
   assert.equal(result.confidence, 'medium');
-  assert.ok(result.percentile > 0 && result.percentile <= 1);
-  assert.ok(result.lowerRank <= result.estimatedRank);
-  assert.ok(result.upperRank >= result.estimatedRank);
-  assert.ok(result.lowerRank >= 1);
-  assert.ok(result.upperRank <= 1_000);
+  assert.ok(Math.abs(result.percentile - 0.7105263157894738) < 1e-12);
+  assert.equal(result.estimatedRank, 290);
+  assert.equal(result.lowerRank, 150);
+  assert.equal(result.upperRank, 430);
 });
 
 test('rejects future estimates without a minimally useful historical sample', () => {
