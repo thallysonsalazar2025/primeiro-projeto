@@ -14,7 +14,7 @@ test('registers a user and reaches the authenticated dashboard', async ({ page }
   await expect(page.getByText('Concurso Intelligence').first()).toBeVisible();
 });
 
-test('logout clears the session and blocks the authenticated dashboard', async ({ page }) => {
+test('logout from the dashboard clears the session and blocks authenticated access', async ({ page }) => {
   const email = `a2-logout-${Date.now()}@example.com`;
 
   await page.goto('/login');
@@ -25,8 +25,8 @@ test('logout clears the session and blocks the authenticated dashboard', async (
   await page.getByRole('button', { name: 'Criar conta' }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 
-  const logout = await page.request.post('/api/auth/logout');
-  expect(logout.ok()).toBeTruthy();
+  await page.getByRole('button', { name: 'Sair da conta' }).click();
+  await expect(page).toHaveURL(/\/login$/);
 
   await page.goto('/dashboard');
   await expect(page).toHaveURL(/\/login$/);
