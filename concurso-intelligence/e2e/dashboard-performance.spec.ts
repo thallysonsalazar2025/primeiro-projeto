@@ -77,6 +77,11 @@ test('shows persisted simulation performance on the dashboard', async ({ page })
     await expect(page.getByText('Taxa de acerto', { exact: true }).locator('..')).toContainText('100%');
     await expect(page.getByText('Acertos', { exact: true }).locator('..')).toContainText('1');
 
+    const trendSection = page.getByRole('heading', { name: 'Evolução nos últimos 7 dias' }).locator('..');
+    await expect(trendSection).toContainText('1/1 acertos');
+    await expect(trendSection).toContainText('1 questões respondidas');
+    await expect(trendSection).toContainText('100%');
+
     const subjectSection = page.getByRole('heading', { name: 'Desempenho por disciplina' }).locator('..');
     await expect(subjectSection).toContainText(subject.name);
     await expect(subjectSection).toContainText('1/1 acertos');
