@@ -28,11 +28,19 @@ type DailyPerformance = {
   accuracy: number;
 };
 
+type RecurringError = {
+  questionId: string;
+  statement: string;
+  subjectName: string;
+  wrongAttempts: bigint;
+  lastWrongAt: Date;
+};
+
 export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const [attempts, correct, recentLogins, subjects, recentSessions, elapsed, subjectPerformanceRows, topicPerformanceRows, dailyPerformanceRows] = await Promise.all([
+  const [attempts, correct, recentLogins, subjects, recentSessions, elapsed, subjectPerformanceRows, topicPerformanceRows, dailyPerformanceRows, recurringErrorRows] = await Promise.all([
     prisma.questionAttempt.count({ where: { userId: user.id } }),
     prisma.questionAttempt.count({ where: { userId: user.id, correct: true } }),
     prisma.loginHistory.findMany({ where: { userId: user.id }, orderBy: { loggedAt: 'desc' }, take: 5 }),
@@ -123,6 +131,24 @@ export default async function DashboardPage() {
       GROUP BY 1
       ORDER BY "day" ASC
     `,
+    prisma.$queryRaw<RecurringError[]>`
+      SELECT
+        q."id" AS "questionId",
+        q."statement" AS "statement",
+        s."name" AS "subjectName",
+        COUNT(*)::bigint AS "wrongAttempts",
+        MAX(qa."answeredAt") AS "lastWrongAt"
+      FROM "QuestionAttempt" qa
+      INNER JOIN "Question" q ON q."id" = qa."questionId"
+      INNER JOIN "Subject" s ON s."id" = q."subjectId"
+      WHERE qa."userId" = ${user.id}
+        AND qa."selected" IS NOT NULL
+        AND qa."correct" = false
+      GROUP BY q."id", q."statement", s."id", s."name"
+      HAVING COUNT(*) >= 2
+      ORDER BY "wrongAttempts" DESC, "lastWrongAt" DESC
+      LIMIT 5
+    `,
   ]);
 
   const accuracy = attempts ? Math.round((correct / attempts) * 1000) / 10 : 0;
@@ -147,6 +173,13 @@ export default async function DashboardPage() {
     attempts: Number(day.attempts),
     correct: Number(day.correct),
     accuracy: day.accuracy,
+  }));
+  const recurringErrors = recurringErrorRows.map((error) => ({
+    questionId: error.questionId,
+    statement: error.statement,
+    subjectName: error.subjectName,
+    wrongAttempts: Number(error.wrongAttempts),
+    lastWrongAt: error.lastWrongAt,
   }));
   const sessionComparison = recentSessions
     .filter((session) => session.finishedAt !== null && session.attempts.length > 0)
@@ -240,6 +273,29 @@ export default async function DashboardPage() {
                     <span style={{ fontWeight: 800 }}>{topic.accuracy}%</span>
                   </div>
                   <small style={{ color: '#64748b' }}>{topic.correct}/{topic.attempts} acertos</small>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section style={panelStyle}>
+          <h2 style={{ marginTop: 0 }}>Erros recorrentes</h2>
+          <p style={{ color: '#64748b' }}>Questões erradas pelo menos duas vezes aparecem aqui para priorizar revisão e quebrar padrões de erro.</p>
+          {recurringErrors.length === 0 ? (
+            <p style={{ color: '#64748b' }}>Nenhuma reincidência de erro identificada ainda.</p>
+          ) : (
+            <div style={{ display: 'grid', gap: 10 }}>
+              {recurringErrors.map((error) => (
+                <article key={error.questionId} style={{ border: '1px solid #e2e8f0', borderRadius: 14, padding: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                    <div style={{ maxWidth: 820 }}>
+                      <strong>{error.statement}</strong>
+                      <small style={{ display: 'block', marginTop: 4, color: '#64748b' }}>{error.subjectName}</small>
+                    </div>
+                    <span style={{ fontWeight: 800 }}>{error.wrongAttempts} erros</span>
+                  </div>
+                  <small style={{ color: '#64748b' }}>Último erro em {error.lastWrongAt.toLocaleString('pt-BR')}</small>
                 </article>
               ))}
             </div>
