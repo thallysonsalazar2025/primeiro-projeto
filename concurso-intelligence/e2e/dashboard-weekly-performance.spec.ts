@@ -12,8 +12,32 @@ test('returns authenticated weekly performance for recent answered questions', a
 
   const suffix = Date.now().toString();
   const email = `a6-weekly-${suffix}@example.com`;
+  const board = await prisma.examBoard.create({
+    data: { name: `Banca Weekly ${suffix}`, acronym: `WK${suffix}` },
+  });
+  const organization = await prisma.organization.create({
+    data: { name: `Órgão Weekly ${suffix}`, acronym: `ORGWK${suffix}` },
+  });
+  const contest = await prisma.contest.create({
+    data: {
+      name: `Concurso Weekly ${suffix}`,
+      year: 2026,
+      organizationId: organization.id,
+    },
+  });
+  const exam = await prisma.exam.create({
+    data: {
+      boardId: board.id,
+      organizationId: organization.id,
+      contestId: contest.id,
+      title: `Prova Weekly ${suffix}`,
+      year: 2026,
+    },
+  });
   const question = await prisma.question.create({
     data: {
+      examId: exam.id,
+      boardId: board.id,
       statement: `Questão semanal ${suffix}`,
       contentFingerprint: `weekly-${suffix}`,
       choices: {
@@ -63,5 +87,9 @@ test('returns authenticated weekly performance for recent answered questions', a
     const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
     if (user) await prisma.user.delete({ where: { id: user.id } });
     await prisma.question.delete({ where: { id: question.id } });
+    await prisma.exam.delete({ where: { id: exam.id } });
+    await prisma.contest.delete({ where: { id: contest.id } });
+    await prisma.organization.delete({ where: { id: organization.id } });
+    await prisma.examBoard.delete({ where: { id: board.id } });
   }
 });
