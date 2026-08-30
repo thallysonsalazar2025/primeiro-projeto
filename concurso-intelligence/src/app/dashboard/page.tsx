@@ -21,11 +21,18 @@ type TopicPerformance = {
   accuracy: number;
 };
 
+type DailyPerformance = {
+  day: Date;
+  attempts: bigint;
+  correct: bigint;
+  accuracy: number;
+};
+
 export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const [attempts, correct, recentLogins, subjects, recentSessions, elapsed, subjectPerformanceRows, topicPerformanceRows] = await Promise.all([
+  const [attempts, correct, recentLogins, subjects, recentSessions, elapsed, subjectPerformanceRows, topicPerformanceRows, dailyPerformanceRows] = await Promise.all([
     prisma.questionAttempt.count({ where: { userId: user.id } }),
     prisma.questionAttempt.count({ where: { userId: user.id, correct: true } }),
     prisma.loginHistory.findMany({ where: { userId: user.id }, orderBy: { loggedAt: 'desc' }, take: 5 }),
@@ -92,6 +99,22 @@ export default async function DashboardPage() {
       ORDER BY "accuracy" ASC, "attempts" DESC, s."name" ASC, t."name" ASC
       LIMIT 6
     `,
+    prisma.$queryRaw<DailyPerformance[]>`
+      SELECT
+        DATE_TRUNC('day', qa."answeredAt" AT TIME ZONE 'America/Sao_Paulo') AS "day",
+        COUNT(*)::bigint AS "attempts",
+        SUM(CASE WHEN qa."correct" THEN 1 ELSE 0 END)::bigint AS "correct",
+        ROUND(
+          (SUM(CASE WHEN qa."correct" THEN 1 ELSE 0 END)::numeric / COUNT(*)::numeric) * 100,
+          1
+        )::double precision AS "accuracy"
+      FROM "QuestionAttempt" qa
+      WHERE qa."userId" = ${user.id}
+        AND qa."selected" IS NOT NULL
+        AND qa."answeredAt" >= NOW() - INTERVAL '6 days'
+      GROUP BY 1
+      ORDER BY "day" ASC
+    `,
   ]);
 
   const accuracy = attempts ? Math.round((correct / attempts) * 1000) / 10 : 0;
@@ -111,6 +134,12 @@ export default async function DashboardPage() {
     correct: Number(topic.correct),
     accuracy: topic.accuracy,
   }));
+  const dailyPerformance = dailyPerformanceRows.map((day) => ({
+    day: day.day,
+    attempts: Number(day.attempts),
+    correct: Number(day.correct),
+    accuracy: day.accuracy,
+  }));
 
   return (
     <main style={{ minHeight: '100vh', background: '#f8fafc', padding: 24 }}>
@@ -129,6 +158,26 @@ export default async function DashboardPage() {
           <Card title="Acertos" value={String(correct)} hint="Questões corretas" />
           <Card title="Questões únicas" value={String(subjects.length)} hint="Cobertura efetiva" />
           <Card title="Tempo médio" value={averageAnswerTime} hint="Por questão respondida" />
+        </section>
+
+        <section style={panelStyle}>
+          <h2 style={{ marginTop: 0 }}>Evolução nos últimos 7 dias</h2>
+          <p style={{ color: '#64748b' }}>Acompanhe volume e taxa de acerto por dia para perceber tendência sem misturar períodos antigos.</p>
+          {dailyPerformance.length === 0 ? (
+            <p style={{ color: '#64748b' }}>Responda questões para começar a formar seu histórico recente.</p>
+          ) : (
+            <div style={{ display: 'grid', gap: 10 }}>
+              {dailyPerformance.map((day) => (
+                <article key={day.day.toISOString()} style={{ border: '1px solid #e2e8f0', borderRadius: 14, padding: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <strong>{day.day.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</strong>
+                    <span style={{ fontWeight: 800 }}>{day.accuracy}%</span>
+                  </div>
+                  <small style={{ color: '#64748b' }}>{day.correct}/{day.attempts} acertos · {day.attempts} questões respondidas</small>
+                </article>
+              ))}
+            </div>
+          )}
         </section>
 
         <section style={panelStyle}>
