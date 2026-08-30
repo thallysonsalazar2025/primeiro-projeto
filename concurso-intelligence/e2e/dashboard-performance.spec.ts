@@ -57,7 +57,7 @@ test('shows persisted simulation performance on the dashboard', async ({ page })
     await page.getByRole('button', { name: 'Criar conta' }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/);
-    await page.getByLabel('Banca').selectOption(board.id);
+    await page.getByRole('combobox', { name: /^Banca/ }).selectOption(board.id);
     await page.getByLabel('Quantidade').fill('1');
     await page.getByRole('button', { name: 'Começar simulado' }).click();
 
@@ -101,7 +101,7 @@ test('shows persisted simulation performance on the dashboard', async ({ page })
     await expect(recentSessions).toContainText('Finalizado');
     await expect(recentSessions).toContainText('Ver resultado');
 
-    await page.getByLabel('Banca').selectOption(board.id);
+    await page.getByRole('combobox', { name: /^Banca/ }).selectOption(board.id);
     await page.getByLabel('Quantidade').fill('1');
     await page.getByRole('button', { name: 'Começar simulado' }).click();
     await page.getByRole('radio', { name: /B\. Resposta incorreta/ }).click();
@@ -119,7 +119,7 @@ test('shows persisted simulation performance on the dashboard', async ({ page })
     const noRecurringErrors = page.getByRole('heading', { name: 'Erros recorrentes' }).locator('..');
     await expect(noRecurringErrors).toContainText('Nenhuma reincidência de erro identificada ainda.');
 
-    await page.getByLabel('Banca').selectOption(board.id);
+    await page.getByRole('combobox', { name: /^Banca/ }).selectOption(board.id);
     await page.getByLabel('Quantidade').fill('1');
     await page.getByRole('button', { name: 'Começar simulado' }).click();
     await page.getByRole('radio', { name: /B\. Resposta incorreta/ }).click();
