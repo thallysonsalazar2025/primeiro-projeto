@@ -85,7 +85,7 @@ O dashboard deve sempre exibir intervalo e confiança. Nunca apresentar uma posi
 
 - senhas armazenadas apenas como hash bcrypt;
 - sessão em cookie HTTP-only;
-- não armazenar IP em claro; se necessário para segurança, persistir apenas hash com retenção definida;
+- não armazenar IP em claro; quando a auditoria de IP estiver habilitada, o endereço é lido somente do header de proxy explicitamente confiável, persistido como HMAC-SHA256 e o hash é removido após 90 dias, preservando o restante do histórico de login;
 - dados públicos de resultados devem ser minimizados. Para o modelo estatístico não é necessário persistir nome completo/CPF de candidatos: `candidateKey` pode ser pseudonimizado durante a importação;
 - manter URL e página da fonte para auditoria.
 
@@ -96,7 +96,13 @@ Crie `.env`:
 ```env
 DATABASE_URL=postgresql://user:password@localhost:5432/concurso_intelligence
 SESSION_SECRET=troque-por-um-segredo-longo-e-aleatorio
+# Opcional. Use apenas quando o proxy de borda sobrescrever/sanitizar este header.
+TRUSTED_IP_HEADER=x-forwarded-for
+# Opcional. Se vazio ou ausente, SESSION_SECRET é usado para o HMAC do IP.
+IP_HASH_SECRET=troque-por-outro-segredo-longo-e-aleatorio
 ```
+
+`TRUSTED_IP_HEADER` aceita somente `x-forwarded-for` ou `x-real-ip`. Sem configuração válida, nenhum hash de IP é armazenado.
 
 ## Executar
 
