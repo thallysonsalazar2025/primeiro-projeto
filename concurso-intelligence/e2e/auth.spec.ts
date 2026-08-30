@@ -13,3 +13,21 @@ test('registers a user and reaches the authenticated dashboard', async ({ page }
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByText('Concurso Intelligence').first()).toBeVisible();
 });
+
+test('logout from the dashboard clears the session and blocks authenticated access', async ({ page }) => {
+  const email = `a2-logout-${Date.now()}@example.com`;
+
+  await page.goto('/login');
+  await page.getByRole('button', { name: 'Ainda não tenho conta' }).click();
+  await page.getByPlaceholder('Nome').fill('A2 Auth');
+  await page.getByPlaceholder('E-mail').fill(email);
+  await page.getByPlaceholder('Senha').fill('Playwright123!');
+  await page.getByRole('button', { name: 'Criar conta' }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+
+  await page.getByRole('button', { name: 'Sair da conta' }).click();
+  await expect(page).toHaveURL(/\/login$/);
+
+  await page.goto('/dashboard');
+  await expect(page).toHaveURL(/\/login$/);
+});
