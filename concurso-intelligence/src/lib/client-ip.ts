@@ -7,7 +7,11 @@ function firstForwardedAddress(value: string | null) {
 }
 
 export function getClientIp(headers: Headers) {
-  return firstForwardedAddress(headers.get('x-forwarded-for')) ?? headers.get('x-real-ip')?.trim() || null;
+  const forwarded = firstForwardedAddress(headers.get('x-forwarded-for'));
+  if (forwarded) return forwarded;
+
+  const realIp = headers.get('x-real-ip')?.trim();
+  return realIp || null;
 }
 
 export function hashClientIp(ip: string | null, secret: string) {
