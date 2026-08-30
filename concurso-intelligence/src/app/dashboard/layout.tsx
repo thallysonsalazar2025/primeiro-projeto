@@ -20,6 +20,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       >
         <Link href="/dashboard" style={linkStyle}>Visão geral</Link>
         <Link href="/dashboard/weekly" style={linkStyle}>Evolução semanal</Link>
+        <Link href="/account" style={linkStyle}>Meu perfil</Link>
       </nav>
       {children}
     </>
