@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogoutButton } from './LogoutButton';
+import { PerformanceByContext } from './PerformanceByContext';
 
 type Catalog = {
   boards: Array<{ id: string; name: string; acronym: string | null }>;
@@ -97,7 +98,8 @@ export function SimulationBuilder() {
   if (loading) return <p style={{ color: '#64748b' }}>Carregando catálogo...</p>;
 
   return (
-    <div style={{ display: 'grid', gap: 14 }}>
+    <div style={{ display: 'grid', gap: 18 }}>
+      <PerformanceByContext />
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <LogoutButton />
       </div>
