@@ -101,7 +101,10 @@ export default async function DashboardPage() {
     `,
     prisma.$queryRaw<DailyPerformance[]>`
       SELECT
-        DATE_TRUNC('day', qa."answeredAt" AT TIME ZONE 'America/Sao_Paulo') AS "day",
+        DATE_TRUNC(
+          'day',
+          (qa."answeredAt" AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo'
+        ) AS "day",
         COUNT(*)::bigint AS "attempts",
         SUM(CASE WHEN qa."correct" THEN 1 ELSE 0 END)::bigint AS "correct",
         ROUND(
@@ -111,7 +114,7 @@ export default async function DashboardPage() {
       FROM "QuestionAttempt" qa
       WHERE qa."userId" = ${user.id}
         AND qa."selected" IS NOT NULL
-        AND (qa."answeredAt" AT TIME ZONE 'America/Sao_Paulo') >=
+        AND ((qa."answeredAt" AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo') >=
           DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Sao_Paulo') - INTERVAL '6 days'
       GROUP BY 1
       ORDER BY "day" ASC
