@@ -1,23 +1,32 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getClientIp, hashClientIp } from './client-ip.ts';
+import { getClientIp, hashClientIp, selectIpHashSecret } from './client-ip.ts';
 
-test('prefers the first forwarded client address', () => {
+test('uses x-forwarded-for only when explicitly trusted', () => {
   const headers = new Headers({
     'x-forwarded-for': '203.0.113.10, 10.0.0.2',
     'x-real-ip': '198.51.100.8',
   });
 
-  assert.equal(getClientIp(headers), '203.0.113.10');
+  assert.equal(getClientIp(headers, 'x-forwarded-for'), '203.0.113.10');
+  assert.equal(getClientIp(headers, undefined), null);
 });
 
-test('falls back to x-real-ip and trims whitespace', () => {
+test('uses x-real-ip only when explicitly trusted and trims whitespace', () => {
   const headers = new Headers({ 'x-real-ip': ' 198.51.100.8 ' });
-  assert.equal(getClientIp(headers), '198.51.100.8');
+  assert.equal(getClientIp(headers, 'x-real-ip'), '198.51.100.8');
 });
 
-test('returns null when no client IP header is available', () => {
-  assert.equal(getClientIp(new Headers()), null);
+test('rejects unsupported trusted header configuration', () => {
+  const headers = new Headers({ 'x-forwarded-for': '203.0.113.10' });
+  assert.equal(getClientIp(headers, 'forwarded'), null);
+});
+
+test('selects a non-empty dedicated secret and otherwise falls back to the session secret', () => {
+  assert.equal(selectIpHashSecret('audit-secret', 'session-secret'), 'audit-secret');
+  assert.equal(selectIpHashSecret('   ', 'session-secret'), 'session-secret');
+  assert.equal(selectIpHashSecret(undefined, '  session-secret  '), 'session-secret');
+  assert.equal(selectIpHashSecret(undefined, '  '), undefined);
 });
 
 test('creates deterministic keyed hashes without storing the raw IP', () => {
