@@ -27,6 +27,17 @@ export async function createSession(userId: string) {
   });
 }
 
+export async function destroySession() {
+  const store = await cookies();
+  store.set(COOKIE, '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0,
+  });
+}
+
 export async function getCurrentUser() {
   const store = await cookies();
   const token = store.get(COOKIE)?.value;
