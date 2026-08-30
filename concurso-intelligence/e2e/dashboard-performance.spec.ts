@@ -115,6 +115,22 @@ test('shows persisted simulation performance on the dashboard', async ({ page })
     await expect(comparison).toContainText('0%');
     await expect(comparison).toContainText('100%');
     await expect(comparison).toContainText('-100 p.p. vs. simulado anterior');
+
+    const noRecurringErrors = page.getByRole('heading', { name: 'Erros recorrentes' }).locator('..');
+    await expect(noRecurringErrors).toContainText('Nenhuma reincidência de erro identificada ainda.');
+
+    await page.getByLabel('Banca').selectOption(board.id);
+    await page.getByLabel('Quantidade').fill('1');
+    await page.getByRole('button', { name: 'Começar simulado' }).click();
+    await page.getByRole('radio', { name: /B\. Resposta incorreta/ }).click();
+    await page.getByRole('button', { name: /^Finalizar prova/ }).click();
+    await expect(page.getByRole('heading', { name: 'Resultado' })).toBeVisible();
+
+    await page.goto('/dashboard');
+    const recurringErrors = page.getByRole('heading', { name: 'Erros recorrentes' }).locator('..');
+    await expect(recurringErrors).toContainText(`Questão dashboard E2E ${suffix}`);
+    await expect(recurringErrors).toContainText(subject.name);
+    await expect(recurringErrors).toContainText('2 erros');
   } finally {
     const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
     if (user) await prisma.user.delete({ where: { id: user.id } });
