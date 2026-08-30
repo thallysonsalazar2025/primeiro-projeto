@@ -30,8 +30,11 @@ export async function getDashboardWeeklyPerformance(userId: string): Promise<Wee
     FROM "QuestionAttempt" qa
     WHERE qa."userId" = ${userId}
       AND qa."selected" IS NOT NULL
-      AND ((qa."answeredAt" AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo') >=
-        DATE_TRUNC('week', NOW() AT TIME ZONE 'America/Sao_Paulo') - INTERVAL '7 weeks'
+      AND qa."answeredAt" >= (
+        (
+          DATE_TRUNC('week', NOW() AT TIME ZONE 'America/Sao_Paulo') - INTERVAL '7 weeks'
+        ) AT TIME ZONE 'America/Sao_Paulo'
+      ) AT TIME ZONE 'UTC'
     GROUP BY 1
     ORDER BY "weekStart" ASC
   `;
