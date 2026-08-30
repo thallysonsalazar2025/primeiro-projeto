@@ -14,7 +14,7 @@ export function getClientIp(headers: Headers) {
   return realIp || null;
 }
 
-export function hashClientIp(ip: string | null, secret: string) {
-  if (!ip) return null;
+export function hashClientIp(ip: string | null, secret: string | undefined) {
+  if (!ip || !secret) return null;
   return createHmac('sha256', secret).update(ip).digest('hex');
 }
