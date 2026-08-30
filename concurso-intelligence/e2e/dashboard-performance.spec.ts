@@ -79,7 +79,7 @@ test('shows persisted simulation performance on the dashboard', async ({ page })
 
     const trendSection = page.getByRole('heading', { name: 'Evolução nos últimos 7 dias' }).locator('..');
     await expect(trendSection).toContainText('1/1 acertos');
-    await expect(trendSection).toContainText('1 questões respondidas');
+    await expect(trendSection).toContainText('1 questão respondida');
     await expect(trendSection).toContainText('100%');
 
     const subjectSection = page.getByRole('heading', { name: 'Desempenho por disciplina' }).locator('..');
