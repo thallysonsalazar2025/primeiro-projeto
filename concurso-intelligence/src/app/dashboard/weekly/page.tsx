@@ -11,7 +11,9 @@ export default async function WeeklyPerformancePage() {
   const weeks = await getDashboardWeeklyPerformance(user.id);
   const latest = weeks.at(-1);
   const previous = weeks.at(-2);
-  const delta = latest && previous ? Math.round((latest.accuracy - previous.accuracy) * 10) / 10 : null;
+  const delta = latest && previous && areConsecutiveWeeks(previous.weekStart, latest.weekStart)
+    ? Math.round((latest.accuracy - previous.accuracy) * 10) / 10
+    : null;
 
   return (
     <main style={{ minHeight: '100vh', background: '#f8fafc', padding: 24 }}>
@@ -67,6 +69,12 @@ export default async function WeeklyPerformancePage() {
       </div>
     </main>
   );
+}
+
+function areConsecutiveWeeks(previousWeekStart: string, latestWeekStart: string) {
+  const previous = Date.parse(`${previousWeekStart}T00:00:00Z`);
+  const latest = Date.parse(`${latestWeekStart}T00:00:00Z`);
+  return Number.isFinite(previous) && Number.isFinite(latest) && latest - previous === 7 * 24 * 60 * 60 * 1000;
 }
 
 function formatWeek(weekStart: string) {
