@@ -3,12 +3,15 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { createSession } from '@/lib/auth';
-import { getClientIp, hashClientIp } from '@/lib/client-ip';
+import { getClientIp, hashClientIp, selectIpHashSecret } from '@/lib/client-ip';
 
 const schema = z.object({
   email: z.string().email().transform((v) => v.toLowerCase()),
   password: z.string().min(1).max(128),
 });
+
+const IP_HASH_RETENTION_DAYS = 90;
+const IP_HASH_RETENTION_MS = IP_HASH_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 
 export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json());
@@ -21,16 +24,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'E-mail ou senha incorretos.' }, { status: 401 });
   }
 
-  await prisma.loginHistory.create({
-    data: {
-      userId: user.id,
-      ipHash: hashClientIp(
-        getClientIp(request.headers),
-        process.env.IP_HASH_SECRET ?? process.env.SESSION_SECRET,
-      ),
-      userAgent: request.headers.get('user-agent')?.slice(0, 500),
-    },
-  });
+  const ipHash = hashClientIp(
+    getClientIp(request.headers, process.env.TRUSTED_IP_HEADER),
+    selectIpHashSecret(process.env.IP_HASH_SECRET, process.env.SESSION_SECRET),
+  );
+
+  await prisma.$transaction([
+    prisma.loginHistory.updateMany({
+      where: {
+        ipHash: { not: null },
+        loggedAt: { lt: new Date(Date.now() - IP_HASH_RETENTION_MS) },
+      },
+      data: { ipHash: null },
+    }),
+    prisma.loginHistory.create({
+      data: {
+        userId: user.id,
+        ipHash,
+        userAgent: request.headers.get('user-agent')?.slice(0, 500),
+      },
+    }),
+  ]);
   await createSession(user.id);
 
   return NextResponse.json({ ok: true });
