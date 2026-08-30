@@ -51,6 +51,10 @@ export default async function DashboardPage() {
         startedAt: true,
         finishedAt: true,
         questionIds: true,
+        attempts: {
+          where: { selected: { not: null } },
+          select: { correct: true },
+        },
         _count: { select: { attempts: true } },
       },
     }),
@@ -144,6 +148,19 @@ export default async function DashboardPage() {
     correct: Number(day.correct),
     accuracy: day.accuracy,
   }));
+  const sessionComparison = recentSessions
+    .filter((session) => session.finishedAt !== null && session.attempts.length > 0)
+    .map((session) => {
+      const sessionCorrect = session.attempts.filter((attempt) => attempt.correct).length;
+      return {
+        id: session.id,
+        positionName: session.positionName,
+        finishedAt: session.finishedAt!,
+        attempts: session.attempts.length,
+        correct: sessionCorrect,
+        accuracy: Math.round((sessionCorrect / session.attempts.length) * 1000) / 10,
+      };
+    });
 
   return (
     <main style={{ minHeight: '100vh', background: '#f8fafc', padding: 24 }}>
@@ -225,6 +242,38 @@ export default async function DashboardPage() {
                   <small style={{ color: '#64748b' }}>{topic.correct}/{topic.attempts} acertos</small>
                 </article>
               ))}
+            </div>
+          )}
+        </section>
+
+        <section style={panelStyle}>
+          <h2 style={{ marginTop: 0 }}>Comparação entre simulados</h2>
+          <p style={{ color: '#64748b' }}>Compare os simulados finalizados mais recentes para enxergar evolução de acurácia entre sessões.</p>
+          {sessionComparison.length === 0 ? (
+            <p style={{ color: '#64748b' }}>Finalize um simulado com respostas para iniciar a comparação.</p>
+          ) : (
+            <div style={{ display: 'grid', gap: 10 }}>
+              {sessionComparison.map((session, index) => {
+                const previous = sessionComparison[index + 1];
+                const delta = previous ? Math.round((session.accuracy - previous.accuracy) * 10) / 10 : null;
+                return (
+                  <article key={session.id} style={{ border: '1px solid #e2e8f0', borderRadius: 14, padding: 14 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <div>
+                        <strong>{session.positionName ?? 'Simulado personalizado'}</strong>
+                        <small style={{ display: 'block', marginTop: 4, color: '#64748b' }}>
+                          Finalizado em {session.finishedAt.toLocaleString('pt-BR')}
+                        </small>
+                      </div>
+                      <span style={{ fontWeight: 800 }}>{session.accuracy}%</span>
+                    </div>
+                    <small style={{ color: '#64748b' }}>
+                      {session.correct}/{session.attempts} acertos
+                      {delta !== null ? ` · ${delta >= 0 ? '+' : ''}${delta} p.p. vs. simulado anterior` : ''}
+                    </small>
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>
