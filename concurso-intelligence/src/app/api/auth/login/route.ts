@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { createSession } from '@/lib/auth';
+import { getClientIp, hashClientIp } from '@/lib/client-ip';
 
 const schema = z.object({
   email: z.string().email().transform((v) => v.toLowerCase()),
@@ -23,6 +24,10 @@ export async function POST(request: Request) {
   await prisma.loginHistory.create({
     data: {
       userId: user.id,
+      ipHash: hashClientIp(
+        getClientIp(request.headers),
+        process.env.IP_HASH_SECRET ?? process.env.SESSION_SECRET,
+      ),
       userAgent: request.headers.get('user-agent')?.slice(0, 500),
     },
   });
