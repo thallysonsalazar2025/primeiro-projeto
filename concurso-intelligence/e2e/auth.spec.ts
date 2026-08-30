@@ -58,3 +58,28 @@ test('authenticated user updates the profile name and sees it persisted', async 
   await page.goto('/dashboard');
   await expect(page.getByRole('heading', { name: 'Olá, A2 Perfil Atualizado' })).toBeVisible();
 });
+
+test('authenticated user sees recent access history without exposing IP data', async ({ page }) => {
+  const email = `a2-history-${Date.now()}@example.com`;
+  const password = 'Playwright123!';
+
+  await page.goto('/login');
+  await page.getByRole('button', { name: 'Ainda não tenho conta' }).click();
+  await page.getByPlaceholder('Nome').fill('A2 Histórico');
+  await page.getByPlaceholder('E-mail').fill(email);
+  await page.getByPlaceholder('Senha').fill(password);
+  await page.getByRole('button', { name: 'Criar conta' }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+
+  await page.getByRole('button', { name: 'Sair da conta' }).click();
+  await page.getByPlaceholder('E-mail').fill(email);
+  await page.getByPlaceholder('Senha').fill(password);
+  await page.getByRole('button', { name: 'Entrar' }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+
+  await page.goto('/account');
+  await expect(page.getByRole('heading', { name: 'Acessos recentes' })).toBeVisible();
+  await expect(page.getByLabel('Histórico de acessos').getByRole('listitem')).toHaveCount(2);
+  await expect(page.getByText('Acesso mais recente')).toBeVisible();
+  await expect(page.getByText(/endereço IP não é exibido/i)).toBeVisible();
+});
