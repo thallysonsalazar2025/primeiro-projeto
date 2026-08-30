@@ -93,9 +93,28 @@ test('shows persisted simulation performance on the dashboard', async ({ page })
     await expect(topicSection).toContainText('1/1 acertos');
     await expect(topicSection).toContainText('100%');
 
+    const firstComparison = page.getByRole('heading', { name: 'Comparação entre simulados' }).locator('..');
+    await expect(firstComparison).toContainText('1/1 acertos');
+    await expect(firstComparison).toContainText('100%');
+
     const recentSessions = page.getByRole('heading', { name: 'Sessões recentes' }).locator('..');
     await expect(recentSessions).toContainText('Finalizado');
     await expect(recentSessions).toContainText('Ver resultado');
+
+    await page.getByLabel('Banca').selectOption(board.id);
+    await page.getByLabel('Quantidade').fill('1');
+    await page.getByRole('button', { name: 'Começar simulado' }).click();
+    await page.getByRole('radio', { name: /B\. Resposta incorreta/ }).click();
+    await page.getByRole('button', { name: /^Finalizar prova/ }).click();
+    await expect(page.getByRole('heading', { name: 'Resultado' })).toBeVisible();
+
+    await page.goto('/dashboard');
+    const comparison = page.getByRole('heading', { name: 'Comparação entre simulados' }).locator('..');
+    await expect(comparison).toContainText('0/1 acertos');
+    await expect(comparison).toContainText('1/1 acertos');
+    await expect(comparison).toContainText('0%');
+    await expect(comparison).toContainText('100%');
+    await expect(comparison).toContainText('-100 p.p. vs. simulado anterior');
   } finally {
     const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
     if (user) await prisma.user.delete({ where: { id: user.id } });
