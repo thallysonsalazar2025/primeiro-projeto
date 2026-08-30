@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { LogoutButton } from './LogoutButton';
 
 type Catalog = {
   boards: Array<{ id: string; name: string; acronym: string | null }>;
@@ -97,6 +98,9 @@ export function SimulationBuilder() {
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <LogoutButton />
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 12 }}>
         <Select label="Banca" value={boardId} onChange={setBoardId} options={catalog?.boards.map((item) => ({ value: item.id, label: item.acronym ? `${item.acronym} · ${item.name}` : item.name })) ?? []} />
         <Select label="Concurso" value={contestId} onChange={(value) => { setContestId(value); setPositionId(''); }} options={catalog?.contests.map((item) => ({ value: item.id, label: `${item.name}${item.year ? ` · ${item.year}` : ''}` })) ?? []} />
