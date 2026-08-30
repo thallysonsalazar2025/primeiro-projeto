@@ -7,7 +7,7 @@ test.afterAll(async () => {
   await prisma.$disconnect();
 });
 
-test('returns authenticated performance grouped by board and contest', async ({ page }) => {
+test('returns and renders authenticated performance grouped by board and contest', async ({ page }) => {
   test.setTimeout(60_000);
 
   const suffix = Date.now().toString();
@@ -89,6 +89,17 @@ test('returns authenticated performance grouped by board and contest', async ({ 
       correct: 1,
       accuracy: 50,
     });
+
+    await page.reload();
+    const boardPanel = page.getByRole('region', { name: 'Desempenho por banca' });
+    await expect(boardPanel).toContainText(`PERF${suffix} · Banca Performance ${suffix}`);
+    await expect(boardPanel).toContainText('50%');
+    await expect(boardPanel).toContainText('1/2 acertos');
+
+    const contestPanel = page.getByRole('region', { name: 'Desempenho por concurso' });
+    await expect(contestPanel).toContainText(`Concurso Performance ${suffix} · 2026`);
+    await expect(contestPanel).toContainText('50%');
+    await expect(contestPanel).toContainText('1/2 acertos');
   } finally {
     const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
     if (user) await prisma.user.delete({ where: { id: user.id } });
