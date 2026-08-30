@@ -111,7 +111,8 @@ export default async function DashboardPage() {
       FROM "QuestionAttempt" qa
       WHERE qa."userId" = ${user.id}
         AND qa."selected" IS NOT NULL
-        AND qa."answeredAt" >= NOW() - INTERVAL '6 days'
+        AND (qa."answeredAt" AT TIME ZONE 'America/Sao_Paulo') >=
+          DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Sao_Paulo') - INTERVAL '6 days'
       GROUP BY 1
       ORDER BY "day" ASC
     `,
@@ -173,7 +174,9 @@ export default async function DashboardPage() {
                     <strong>{day.day.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</strong>
                     <span style={{ fontWeight: 800 }}>{day.accuracy}%</span>
                   </div>
-                  <small style={{ color: '#64748b' }}>{day.correct}/{day.attempts} acertos · {day.attempts} questões respondidas</small>
+                  <small style={{ color: '#64748b' }}>
+                    {day.correct}/{day.attempts} acertos · {day.attempts} {day.attempts === 1 ? 'questão respondida' : 'questões respondidas'}
+                  </small>
                 </article>
               ))}
             </div>
