@@ -17,9 +17,18 @@ test('valida payload oficial, normaliza chave e aplica categoria geral por padr�
   assert.doesNotThrow(() => assertNoDuplicateRankingRows(payload));
 });
 
+test('rejeita importação sem cargo porque o estimador é segmentado por posição', () => {
+  assert.throws(() => parseOfficialRankingImport({
+    contestId: 'contest-1',
+    sourceUrl: 'https://example.gov.br/resultado.pdf',
+    rows: [{ candidateKey: 'candidate-1', score: 82.5 }],
+  }));
+});
+
 test('rejeita candidateKey vazio após trim', () => {
   assert.throws(() => parseOfficialRankingImport({
     contestId: 'contest-1',
+    positionId: 'position-1',
     sourceUrl: 'https://example.gov.br/resultado.pdf',
     rows: [{ candidateKey: '   ', score: 82.5 }],
   }));
@@ -28,6 +37,7 @@ test('rejeita candidateKey vazio após trim', () => {
 test('rejeita duplicidade de candidato dentro da mesma categoria', () => {
   const payload = parseOfficialRankingImport({
     contestId: 'contest-1',
+    positionId: 'position-1',
     sourceUrl: 'https://example.gov.br/resultado.pdf',
     rows: [
       { candidateKey: 'candidate-1', score: 82.5, category: 'PCD' },
@@ -41,6 +51,7 @@ test('rejeita duplicidade de candidato dentro da mesma categoria', () => {
 test('permite o mesmo candidateKey em categorias distintas', () => {
   const payload = parseOfficialRankingImport({
     contestId: 'contest-1',
+    positionId: 'position-1',
     sourceUrl: 'https://example.gov.br/resultado.pdf',
     rows: [
       { candidateKey: 'candidate-1', score: 82.5, category: 'GENERAL' },
