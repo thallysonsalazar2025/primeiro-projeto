@@ -8,16 +8,17 @@ datasource db {
 }
 
 model User {
-  id           String          @id @default(cuid())
-  email        String          @unique
-  passwordHash String
-  name         String?
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  logins       LoginHistory[]
-  attempts     QuestionAttempt[]
-  sessions     StudySession[]
-  targets      UserContestTarget[]
+  id             String          @id @default(cuid())
+  email          String          @unique
+  passwordHash   String
+  sessionVersion Int             @default(0)
+  name           String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  logins         LoginHistory[]
+  attempts       QuestionAttempt[]
+  sessions       StudySession[]
+  targets        UserContestTarget[]
 }
 
 model LoginHistory {
