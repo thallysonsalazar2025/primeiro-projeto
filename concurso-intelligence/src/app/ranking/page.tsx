@@ -11,14 +11,11 @@ export default async function RankingPage() {
 
   const rankingGroups = await prisma.officialRankingRow.groupBy({
     by: ['contestId', 'positionId', 'category'],
-    where: { positionId: { not: null } },
     orderBy: [{ contestId: 'asc' }, { positionId: 'asc' }, { category: 'asc' }],
   });
 
   const contestIds = Array.from(new Set(rankingGroups.map((row) => row.contestId)));
-  const positionIds = Array.from(
-    new Set(rankingGroups.flatMap((row) => (row.positionId ? [row.positionId] : []))),
-  );
+  const positionIds = Array.from(new Set(rankingGroups.map((row) => row.positionId)));
 
   const [contestRows, positionRows] = await Promise.all([
     prisma.contest.findMany({
@@ -41,7 +38,6 @@ export default async function RankingPage() {
   }>();
 
   for (const group of rankingGroups) {
-    if (!group.positionId) continue;
     const contestRow = contestById.get(group.contestId);
     const positionRow = positionById.get(group.positionId);
     if (!contestRow || !positionRow || positionRow.contestId !== contestRow.id) continue;
