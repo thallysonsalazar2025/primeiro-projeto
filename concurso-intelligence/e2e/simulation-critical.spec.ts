@@ -3,6 +3,12 @@ import { expect, test } from '@playwright/test';
 
 const prisma = new PrismaClient();
 
+function elapsedTextToSeconds(value: string | null) {
+  const match = value?.match(/(\d{2}):(\d{2}):(\d{2})/);
+  if (!match) throw new Error(`Invalid elapsed time: ${value}`);
+  return Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
+}
+
 test.afterAll(async () => {
   await prisma.$disconnect();
 });
@@ -62,6 +68,13 @@ test('creates, resumes, reviews and finishes a simulation', async ({ page }) => 
     await expect(page).toHaveURL(/\/simulations\/[^/]+$/);
     await expect(page.getByText(`Questão crítica E2E ${suffix}`)).toBeVisible();
 
+    const timer = page.getByLabel('Tempo decorrido');
+    await expect(timer).toHaveText(/Tempo decorrido: \d{2}:\d{2}:\d{2}/);
+    const initialTimerSeconds = elapsedTextToSeconds(await timer.textContent());
+    await page.waitForTimeout(1100);
+    const beforeReloadSeconds = elapsedTextToSeconds(await timer.textContent());
+    expect(beforeReloadSeconds).toBeGreaterThan(initialTimerSeconds);
+
     const correctAnswer = page.getByRole('radio', { name: /A\. Resposta correta/ });
     await correctAnswer.click();
     await expect(page.getByText('1/1 respondidas')).toBeVisible();
@@ -74,12 +87,19 @@ test('creates, resumes, reviews and finishes a simulation', async ({ page }) => 
     await expect(page.getByText('1/1 respondidas')).toBeVisible();
     await expect(page.getByRole('button', { name: '★ Marcada para revisão' })).toBeVisible();
     await expect(page.getByRole('radio', { name: /A\. Resposta correta/ })).toBeChecked();
+    const resumedTimer = page.getByLabel('Tempo decorrido');
+    await expect(resumedTimer).toHaveText(/Tempo decorrido: \d{2}:\d{2}:\d{2}/);
+    expect(elapsedTextToSeconds(await resumedTimer.textContent())).toBeGreaterThanOrEqual(beforeReloadSeconds);
 
     await page.getByRole('button', { name: /^Finalizar prova/ }).click();
     await expect(page.getByRole('heading', { name: 'Resultado' })).toBeVisible();
     await expect(page.getByText('100% de acerto')).toBeVisible();
     await expect(page.getByText('✓ Correta')).toBeVisible();
     await expect(page.getByText('Gabarito: A')).toBeVisible();
+
+    const finishedTimerSeconds = elapsedTextToSeconds(await page.getByLabel('Tempo decorrido').textContent());
+    await page.waitForTimeout(1100);
+    expect(elapsedTextToSeconds(await page.getByLabel('Tempo decorrido').textContent())).toBe(finishedTimerSeconds);
   } finally {
     const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
     if (user) await prisma.user.delete({ where: { id: user.id } });

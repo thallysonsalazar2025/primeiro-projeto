@@ -9,12 +9,30 @@ type Question = { id: string; number: number | null; statement: string; choices:
 type Result = { totalQuestions: number; answered: number; correct: number; incorrect: number; blank: number; accuracy: number; elapsedMs: number };
 type ReviewDetail = { selected: string | null; correct: boolean | null; correctLabels: string[] };
 type SessionPayload = {
-  session: { id: string; questionCount: number; answeredCount: number; reviewQuestionIds: string[]; canResume: boolean; positionName: string | null };
+  serverNow: string;
+  session: {
+    id: string;
+    startedAt: string;
+    finishedAt: string | null;
+    questionCount: number;
+    answeredCount: number;
+    reviewQuestionIds: string[];
+    canResume: boolean;
+    positionName: string | null;
+  };
   questions: Question[];
   attemptsByQuestionId: Record<string, { selected: string | null; elapsedMs: number | null }>;
   result: Result | null;
   reviewByQuestionId: Record<string, ReviewDetail> | null;
 };
+
+function formatElapsed(elapsedMs: number) {
+  const totalSeconds = Math.floor(Math.max(0, elapsedMs) / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
+}
 
 export default function SimulationPage() {
   const params = useParams<{ sessionId: string }>();
@@ -26,7 +44,21 @@ export default function SimulationPage() {
   const [markingReview, setMarkingReview] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [sessionTick, setSessionTick] = useState(0);
   const activeQuestionStartedAt = useRef(Date.now());
+  const sessionTimerAnchor = useRef<{ elapsedMs: number; monotonicMs: number } | null>(null);
+
+  function anchorSessionTimer(payload: SessionPayload) {
+    const startedAt = new Date(payload.session.startedAt).getTime();
+    const serverNow = new Date(payload.serverNow).getTime();
+    const finishedAt = payload.session.finishedAt ? new Date(payload.session.finishedAt).getTime() : null;
+    const authoritativeNow = finishedAt ?? serverNow;
+    const elapsedMs = Number.isFinite(startedAt) && Number.isFinite(authoritativeNow)
+      ? Math.max(0, authoritativeNow - startedAt)
+      : 0;
+    sessionTimerAnchor.current = { elapsedMs, monotonicMs: performance.now() };
+    setSessionTick((current) => current + 1);
+  }
 
   useEffect(() => {
     fetch(`/api/simulations/${sessionId}`)
@@ -36,11 +68,31 @@ export default function SimulationPage() {
       })
       .then((payload: SessionPayload) => {
         activeQuestionStartedAt.current = Date.now();
+        anchorSessionTimer(payload);
         setData(payload);
         setResult(payload.result);
       })
       .catch((cause: Error) => setError(cause.message));
   }, [sessionId]);
+
+  useEffect(() => {
+    if (!data?.session.canResume) return;
+    const intervalId = window.setInterval(() => setSessionTick((current) => current + 1), 1000);
+    return () => window.clearInterval(intervalId);
+  }, [data?.session.canResume]);
+
+  const sessionElapsedMs = useMemo(() => {
+    if (!data) return 0;
+    const startedAt = new Date(data.session.startedAt).getTime();
+    if (!Number.isFinite(startedAt)) return 0;
+    if (data.session.finishedAt) {
+      const finishedAt = new Date(data.session.finishedAt).getTime();
+      return Number.isFinite(finishedAt) ? Math.max(0, finishedAt - startedAt) : 0;
+    }
+    const anchor = sessionTimerAnchor.current;
+    if (!anchor) return 0;
+    return anchor.elapsedMs + Math.max(0, performance.now() - anchor.monotonicMs);
+  }, [data, sessionTick]);
 
   const answeredQuestionIds = useMemo(() => {
     if (!data) return new Set<string>();
@@ -131,8 +183,8 @@ export default function SimulationPage() {
 
     try {
       const response = await fetch(`/api/simulations/${sessionId}/finish`, { method: 'POST' });
-      const body = await response.json().catch(() => null) as { result?: Result; error?: string } | null;
-      if (!response.ok || !body?.result) {
+      const body = await response.json().catch(() => null) as { result?: Result; session?: { finishedAt?: string }; error?: string } | null;
+      if (!response.ok || !body?.result || !body.session?.finishedAt) {
         throw new Error(body?.error ?? 'Falha ao finalizar simulado');
       }
 
@@ -142,11 +194,16 @@ export default function SimulationPage() {
         if (!refreshedResponse.ok || !refreshed) {
           throw new Error('Falha ao carregar correção detalhada');
         }
+        anchorSessionTimer(refreshed);
         setData(refreshed);
         setResult(refreshed.result);
       } catch {
         setResult(body.result);
-        setData((current) => current ? { ...current, result: body.result ?? null, session: { ...current.session, canResume: false } } : current);
+        setData((current) => current ? {
+          ...current,
+          result: body.result ?? null,
+          session: { ...current.session, canResume: false, finishedAt: body.session?.finishedAt ?? current.session.finishedAt },
+        } : current);
         setError('Simulado finalizado. A correção detalhada poderá ser carregada ao reabrir o resultado.');
       }
     } catch (cause) {
@@ -165,6 +222,7 @@ export default function SimulationPage() {
         <Link href="/dashboard">← Voltar ao painel</Link>
         <h1>{data.session.positionName ?? 'Simulado'}</h1>
         <p style={{ color: '#64748b' }}>{data.session.answeredCount}/{data.session.questionCount} respondidas · {data.session.reviewQuestionIds.length} para revisão {data.session.canResume ? '· em andamento' : '· finalizado'}</p>
+        <p aria-label="Tempo decorrido" style={{ color: '#334155', fontWeight: 800 }}>⏱ Tempo decorrido: {formatElapsed(sessionElapsedMs)}</p>
         {error && <p style={{ color: '#b91c1c' }}>{error}</p>}
 
         <nav aria-label="Navegação entre questões" style={navigatorStyle}>
