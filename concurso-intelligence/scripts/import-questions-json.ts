@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { PrismaClient, QuestionStatus, SourceType } from '@prisma/client';
+import { AnswerKeyKind, PrismaClient, QuestionStatus, SourceType } from '@prisma/client';
 import { questionFingerprint } from '../src/lib/question-fingerprint.ts';
 import {
   validateQuestionImportBatch,
@@ -7,6 +7,33 @@ import {
 } from '../src/lib/question-import.ts';
 
 const prisma = new PrismaClient();
+
+async function appendFinalAnswerKey(questionId: string, answer: string | null, isAnnulled: boolean, sourceUrl: string) {
+  const latest = await prisma.questionAnswerKey.findFirst({
+    where: { questionId },
+    orderBy: { version: 'desc' },
+  });
+
+  if (
+    latest &&
+    latest.kind === AnswerKeyKind.FINAL &&
+    latest.answer === answer &&
+    latest.isAnnulled === isAnnulled
+  ) {
+    return latest;
+  }
+
+  return prisma.questionAnswerKey.create({
+    data: {
+      questionId,
+      version: (latest?.version ?? 0) + 1,
+      kind: AnswerKeyKind.FINAL,
+      answer,
+      isAnnulled,
+      sourceUrl,
+    },
+  });
+}
 
 async function main() {
   const inputPath = process.argv[2];
@@ -101,10 +128,11 @@ async function main() {
       select: { id: true },
     });
 
+    const status = QuestionStatus[question.status ?? 'ACTIVE'];
     const saved = await prisma.question.upsert({
       where: { contentFingerprint: fingerprint },
       update: {
-        status: QuestionStatus[question.status ?? 'ACTIVE'],
+        status,
         ...(hasSubject ? { subjectId: subject?.id ?? null } : {}),
         ...(hasTopic ? { topicId: topic?.id ?? null } : {}),
         ...(hasExplanation ? { explanation: question.explanation?.trim() || null } : {}),
@@ -121,7 +149,7 @@ async function main() {
         number: question.number ?? null,
         statement: question.statement.trim(),
         explanation: question.explanation?.trim() || null,
-        status: QuestionStatus[question.status ?? 'ACTIVE'],
+        status,
         sourceUrl: batch.source.url,
         sourcePage: question.sourcePage ?? null,
         sourceLabel: question.sourceLabel?.trim() || null,
@@ -151,6 +179,23 @@ async function main() {
         label: { notIn: currentLabels },
       },
     });
+
+    const correctChoices = question.choices
+      .filter((choice) => choice.isCorrect)
+      .map((choice) => choice.label.trim().toUpperCase());
+    const isAnnulled = status === QuestionStatus.ANNULLED;
+    if (!isAnnulled && correctChoices.length !== 1) {
+      throw new Error(`Questão ${question.number ?? saved.id} precisa ter exatamente uma alternativa correta para versionar o gabarito.`);
+    }
+    if (isAnnulled && correctChoices.length !== 0) {
+      throw new Error(`Questão anulada ${question.number ?? saved.id} não pode ter alternativa correta.`);
+    }
+    await appendFinalAnswerKey(
+      saved.id,
+      isAnnulled ? null : correctChoices[0],
+      isAnnulled,
+      batch.source.url,
+    );
 
     const provenance = await prisma.questionProvenance.findFirst({
       where: {

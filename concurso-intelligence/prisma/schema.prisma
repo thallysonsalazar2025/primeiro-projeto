@@ -143,6 +143,7 @@ model Question {
   firstSeenAt        DateTime             @default(now())
   lastVerifiedAt     DateTime?
   choices            QuestionChoice[]
+  answerKeys         QuestionAnswerKey[]
   attempts           QuestionAttempt[]
   provenance         QuestionProvenance[]
 
@@ -159,6 +160,22 @@ model QuestionChoice {
   isCorrect  Boolean  @default(false)
 
   @@unique([questionId, label])
+}
+
+model QuestionAnswerKey {
+  id          String        @id @default(cuid())
+  questionId  String
+  question    Question      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  version     Int
+  kind        AnswerKeyKind
+  answer      String?
+  isAnnulled  Boolean       @default(false)
+  sourceUrl   String?
+  publishedAt DateTime?
+  createdAt   DateTime      @default(now())
+
+  @@unique([questionId, version])
+  @@index([questionId, kind, version])
 }
 
 model QuestionProvenance {
@@ -256,6 +273,11 @@ enum QuestionStatus {
   ANNULLED
   OUTDATED
   REVIEW_REQUIRED
+}
+
+enum AnswerKeyKind {
+  PRELIMINARY
+  FINAL
 }
 
 enum SourceType {
