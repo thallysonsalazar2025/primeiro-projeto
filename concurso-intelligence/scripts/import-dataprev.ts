@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { PrismaClient, QuestionStatus, SourceType } from "@prisma/client";
+import { AnswerKeyKind, PrismaClient, QuestionStatus, SourceType } from "@prisma/client";
 import { dataprevFingerprint, type DataprevLegacyQuestion } from "../src/lib/dataprev-fingerprint.ts";
 
 const prisma = new PrismaClient();
@@ -53,7 +53,11 @@ async function validatePersistedImport(examId: string, expectedKey: string[]) {
   const persisted = await prisma.question.findMany({
     where: { examId },
     orderBy: { number: "asc" },
-    include: { choices: { orderBy: { label: "asc" } }, provenance: true },
+    include: {
+      choices: { orderBy: { label: "asc" } },
+      provenance: true,
+      answerKeys: { orderBy: { version: "asc" } },
+    },
   });
 
   if (persisted.length !== 70) {
@@ -69,16 +73,31 @@ async function validatePersistedImport(examId: string, expectedKey: string[]) {
     const number = question.number!;
     const expectedAnswer = expectedKey[number - 1];
     const correctChoices = question.choices.filter((choice) => choice.isCorrect);
+    const finalKey = question.answerKeys.find((entry) => entry.kind === AnswerKeyKind.FINAL && entry.version === 1);
 
     if (question.choices.length === 0) {
       throw new Error(`Validação pós-import falhou: questão ${number} sem alternativas persistidas`);
     }
 
+    if (!finalKey) {
+      throw new Error(`Validação pós-import falhou: questão ${number} sem gabarito final versionado`);
+    }
+
     if (expectedAnswer === "*") {
-      if (question.status !== QuestionStatus.ANNULLED || correctChoices.length !== 0) {
+      if (
+        question.status !== QuestionStatus.ANNULLED ||
+        correctChoices.length !== 0 ||
+        !finalKey.isAnnulled ||
+        finalKey.answer !== null
+      ) {
         throw new Error(`Validação pós-import falhou: questão anulada ${number} inconsistente`);
       }
-    } else if (correctChoices.length !== 1 || correctChoices[0].label !== expectedAnswer) {
+    } else if (
+      correctChoices.length !== 1 ||
+      correctChoices[0].label !== expectedAnswer ||
+      finalKey.isAnnulled ||
+      finalKey.answer !== expectedAnswer
+    ) {
       throw new Error(`Validação pós-import falhou: gabarito da questão ${number} inconsistente`);
     }
 
@@ -178,6 +197,24 @@ async function main() {
         create: { questionId: saved.id, label, text, isCorrect },
       });
     }
+
+    await prisma.questionAnswerKey.upsert({
+      where: { questionId_version: { questionId: saved.id, version: 1 } },
+      update: {
+        kind: AnswerKeyKind.FINAL,
+        answer: answer === "*" ? null : answer,
+        isAnnulled: answer === "*",
+        sourceUrl: "legacy://primeiro-projeto/index.html",
+      },
+      create: {
+        questionId: saved.id,
+        version: 1,
+        kind: AnswerKeyKind.FINAL,
+        answer: answer === "*" ? null : answer,
+        isAnnulled: answer === "*",
+        sourceUrl: "legacy://primeiro-projeto/index.html",
+      },
+    });
 
     const existingProvenance = await prisma.questionProvenance.findFirst({
       where: { questionId: saved.id, sourceType: SourceType.GITHUB_REPOSITORY, sourceUrl: "legacy://primeiro-projeto" },
