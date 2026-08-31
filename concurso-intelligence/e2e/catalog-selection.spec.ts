@@ -95,11 +95,15 @@ test('returns catalog relationships and renders dependent preparation filters', 
     await page.getByRole('button', { name: 'Criar conta' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
 
-    const boardSelect = page.getByLabel('Banca', { exact: true });
-    const contestSelect = page.getByLabel('Concurso', { exact: true });
-    const positionSelect = page.getByLabel('Cargo', { exact: true });
-    const subjectSelect = page.getByLabel('Disciplina', { exact: true });
-    const topicSelect = page.getByLabel('Assunto', { exact: true });
+    const selectByField = (label: string) => page
+      .locator('label')
+      .filter({ has: page.getByText(label, { exact: true }) })
+      .locator('select');
+    const boardSelect = selectByField('Banca');
+    const contestSelect = selectByField('Concurso');
+    const positionSelect = selectByField('Cargo');
+    const subjectSelect = selectByField('Disciplina');
+    const topicSelect = selectByField('Assunto');
 
     await boardSelect.selectOption({ label: `${board.acronym} · ${board.name}` });
     await expect(boardSelect).not.toHaveValue('');
