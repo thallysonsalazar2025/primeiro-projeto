@@ -127,6 +127,7 @@ export async function GET(
   }
 
   return NextResponse.json({
+    serverNow: new Date(),
     session: {
       id: session.id,
       startedAt: session.startedAt,
