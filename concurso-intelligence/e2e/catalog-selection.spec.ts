@@ -95,11 +95,11 @@ test('returns catalog relationships and renders dependent preparation filters', 
     await page.getByRole('button', { name: 'Criar conta' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
 
-    const boardSelect = page.getByLabel('Banca');
-    const contestSelect = page.getByLabel('Concurso');
-    const positionSelect = page.getByLabel('Cargo');
-    const subjectSelect = page.getByLabel('Disciplina');
-    const topicSelect = page.getByLabel('Assunto');
+    const boardSelect = page.getByLabel('Banca', { exact: true });
+    const contestSelect = page.getByLabel('Concurso', { exact: true });
+    const positionSelect = page.getByLabel('Cargo', { exact: true });
+    const subjectSelect = page.getByLabel('Disciplina', { exact: true });
+    const topicSelect = page.getByLabel('Assunto', { exact: true });
 
     await expect(boardSelect.getByRole('option', { name: `${board.acronym} · ${board.name}` })).toBeAttached();
     await expect(contestSelect.getByRole('option', { name: `${contest.name} · 2026` })).toBeAttached();
