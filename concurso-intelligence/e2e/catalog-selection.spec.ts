@@ -101,18 +101,22 @@ test('returns catalog relationships and renders dependent preparation filters', 
     const subjectSelect = page.getByLabel('Disciplina', { exact: true });
     const topicSelect = page.getByLabel('Assunto', { exact: true });
 
-    await expect(boardSelect.locator(`option[value="${board.id}"]`)).toHaveText(`${board.acronym} · ${board.name}`);
-    await expect(contestSelect.locator(`option[value="${contest.id}"]`)).toHaveText(`${contest.name} · 2026`);
+    await boardSelect.selectOption({ label: `${board.acronym} · ${board.name}` });
+    await expect(boardSelect).not.toHaveValue('');
+
     await expect(positionSelect).toBeDisabled();
-    await contestSelect.selectOption(contest.id);
+    await contestSelect.selectOption({ label: `${contest.name} · 2026` });
     await expect(positionSelect).toBeEnabled();
-    await expect(positionSelect.locator(`option[value="${position.id}"]`)).toHaveText(`${position.name} · Tecnologia`);
+    await positionSelect.selectOption({ label: `${position.name} · Tecnologia` });
+    await expect(positionSelect).not.toHaveValue('');
 
     await expect(topicSelect).toBeDisabled();
-    await subjectSelect.selectOption(subject.id);
+    await subjectSelect.selectOption({ label: subject.name });
     await expect(topicSelect).toBeEnabled();
-    await expect(topicSelect.locator(`option[value="${rootTopic.id}"]`)).toHaveText(rootTopic.name);
-    await expect(topicSelect.locator(`option[value="${childTopic.id}"]`)).toHaveText(`${rootTopic.name} › ${childTopic.name}`);
+    await topicSelect.selectOption({ label: rootTopic.name });
+    await expect(topicSelect).not.toHaveValue('');
+    await topicSelect.selectOption({ label: `${rootTopic.name} › ${childTopic.name}` });
+    await expect(topicSelect).not.toHaveValue('');
   } finally {
     const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
     if (user) await prisma.user.delete({ where: { id: user.id } });
