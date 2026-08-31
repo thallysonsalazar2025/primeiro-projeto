@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { assertNoDuplicateRankingRows, parseOfficialRankingImport } from '../src/lib/official-ranking-import.ts';
 
 const prisma = new PrismaClient();
+const BATCH_SIZE = 100;
 
 async function main() {
   const inputPath = process.argv[2];
@@ -11,53 +12,52 @@ async function main() {
   const payload = parseOfficialRankingImport(JSON.parse(await readFile(inputPath, 'utf8')));
   assertNoDuplicateRankingRows(payload);
 
-  const contest = await prisma.contest.findUnique({ where: { id: payload.contestId } });
+  const contest = await prisma.contest.findUnique({ where: { id: payload.contestId }, select: { id: true } });
   if (!contest) throw new Error(`Concurso não encontrado: ${payload.contestId}`);
 
-  if (payload.positionId) {
-    const position = await prisma.contestPosition.findFirst({
-      where: { id: payload.positionId, contestId: payload.contestId },
-      select: { id: true },
-    });
-    if (!position) throw new Error(`Cargo não pertence ao concurso: ${payload.positionId}`);
-  }
+  const position = await prisma.contestPosition.findFirst({
+    where: { id: payload.positionId, contestId: payload.contestId },
+    select: { id: true },
+  });
+  if (!position) throw new Error(`Cargo não pertence ao concurso: ${payload.positionId}`);
 
-  let created = 0;
-  let updated = 0;
+  let processed = 0;
+  const importedAt = new Date();
 
-  await prisma.$transaction(async (tx) => {
-    for (const row of payload.rows) {
+  for (let offset = 0; offset < payload.rows.length; offset += BATCH_SIZE) {
+    const batch = payload.rows.slice(offset, offset + BATCH_SIZE);
+    await Promise.all(batch.map((row) => {
       const identity = {
         contestId: payload.contestId,
-        positionId: payload.positionId ?? null,
+        positionId: payload.positionId,
         candidateKey: row.candidateKey,
         category: row.category,
       } as const;
 
-      const existing = await tx.officialRankingRow.findFirst({
-        where: identity,
-        select: { id: true },
-      });
-
       const data = {
-        ...identity,
         score: row.score,
         rank: row.rank ?? null,
         sourceUrl: payload.sourceUrl,
         sourcePage: row.sourcePage ?? payload.sourcePage ?? null,
+        importedAt,
       };
 
-      if (existing) {
-        await tx.officialRankingRow.update({ where: { id: existing.id }, data });
-        updated += 1;
-      } else {
-        await tx.officialRankingRow.create({ data });
-        created += 1;
-      }
-    }
-  });
+      return prisma.officialRankingRow.upsert({
+        where: { contestId_positionId_candidateKey_category: identity },
+        create: { ...identity, ...data },
+        update: data,
+      });
+    }));
+    processed += batch.length;
+  }
 
-  console.log(JSON.stringify({ contestId: payload.contestId, positionId: payload.positionId ?? null, created, updated, total: payload.rows.length }, null, 2));
+  console.log(JSON.stringify({
+    contestId: payload.contestId,
+    positionId: payload.positionId,
+    processed,
+    total: payload.rows.length,
+    importedAt: importedAt.toISOString(),
+  }, null, 2));
 }
 
 main()
