@@ -5,7 +5,7 @@ const nonBlankString = z.string().trim().min(1);
 
 export const officialRankingImportSchema = z.object({
   contestId: nonBlankString,
-  positionId: nonBlankString.nullable().optional(),
+  positionId: nonBlankString,
   sourceUrl: z.string().url(),
   sourcePage: z.number().int().positive().nullable().optional(),
   rows: z.array(z.object({
