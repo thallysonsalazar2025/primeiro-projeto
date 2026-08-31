@@ -9,13 +9,10 @@ const schema = z.object({
 
 const genericResponse = { ok: true, message: 'Se o e-mail estiver cadastrado, você receberá instruções para redefinir a senha.' };
 const RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
-const DELIVERY_BUDGET_MS = 450;
+const DELIVERY_TIMEOUT_MS = 350;
+const RESPONSE_BUDGET_MS = 900;
+const MAX_COOLDOWN_ENTRIES = 10_000;
 const attempts = new Map<string, number>();
-
-function clientKey(request: Request, email: string) {
-  const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-  return `${forwarded ?? 'unknown'}:${email}`;
-}
 
 function publicOrigin(request: Request) {
   const configured = process.env.PUBLIC_APP_URL;
@@ -35,6 +32,21 @@ async function waitUntil(startedAt: number, minimumMs: number) {
   if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
 }
 
+function pruneAttempts(now: number) {
+  for (const [key, timestamp] of attempts) {
+    if (now - timestamp >= RATE_LIMIT_WINDOW_MS) attempts.delete(key);
+  }
+  while (attempts.size > MAX_COOLDOWN_ENTRIES) {
+    const oldestKey = attempts.keys().next().value as string | undefined;
+    if (!oldestKey) break;
+    attempts.delete(oldestKey);
+  }
+}
+
+async function consumeEquivalentDeliveryBudget() {
+  await new Promise((resolve) => setTimeout(resolve, DELIVERY_TIMEOUT_MS));
+}
+
 export async function POST(request: Request) {
   const startedAt = Date.now();
   const parsed = schema.safeParse(await request.json());
@@ -48,41 +60,48 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Recuperação de senha temporariamente indisponível.' }, { status: 503 });
   }
 
-  const key = clientKey(request, parsed.data.email);
-  const lastAttempt = attempts.get(key) ?? 0;
-  if (startedAt - lastAttempt < RATE_LIMIT_WINDOW_MS) {
-    await waitUntil(startedAt, DELIVERY_BUDGET_MS);
+  pruneAttempts(startedAt);
+  const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
+
+  if (!user) {
+    await consumeEquivalentDeliveryBudget();
+    await waitUntil(startedAt, RESPONSE_BUDGET_MS);
     return NextResponse.json(genericResponse, { status: 202 });
   }
-  attempts.set(key, startedAt);
 
-  const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
-  if (user) {
-    try {
-      const resetUrl = new URL('/reset-password', publicOrigin(request));
-      resetUrl.searchParams.set('token', createPasswordResetToken(user.id, user.passwordHash));
+  const lastAttempt = attempts.get(user.id) ?? 0;
+  if (startedAt - lastAttempt < RATE_LIMIT_WINDOW_MS) {
+    await consumeEquivalentDeliveryBudget();
+    await waitUntil(startedAt, RESPONSE_BUDGET_MS);
+    return NextResponse.json(genericResponse, { status: 202 });
+  }
+  attempts.set(user.id, startedAt);
 
-      if (webhookUrl) {
-        const response = await fetch(webhookUrl, {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            ...(process.env.PASSWORD_RESET_WEBHOOK_SECRET
-              ? { authorization: `Bearer ${process.env.PASSWORD_RESET_WEBHOOK_SECRET}` }
-              : {}),
-          },
-          body: JSON.stringify({ email: user.email, resetUrl: resetUrl.toString(), expiresInMinutes: 30 }),
-          signal: AbortSignal.timeout(350),
-        });
-        if (!response.ok) throw new Error(`password reset webhook returned ${response.status}`);
-      } else {
-        console.info('password-reset-development-link', resetUrl.toString());
-      }
-    } catch (error) {
-      console.error('password-reset-delivery-failed', error instanceof Error ? error.message : 'unknown');
+  try {
+    const resetUrl = new URL('/reset-password', publicOrigin(request));
+    resetUrl.searchParams.set('token', createPasswordResetToken(user.id, user.passwordHash));
+
+    if (webhookUrl) {
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(process.env.PASSWORD_RESET_WEBHOOK_SECRET
+            ? { authorization: `Bearer ${process.env.PASSWORD_RESET_WEBHOOK_SECRET}` }
+            : {}),
+        },
+        body: JSON.stringify({ email: user.email, resetUrl: resetUrl.toString(), expiresInMinutes: 30 }),
+        signal: AbortSignal.timeout(DELIVERY_TIMEOUT_MS),
+      });
+      if (!response.ok) throw new Error(`password reset webhook returned ${response.status}`);
+    } else {
+      console.info('password-reset-development-link', resetUrl.toString());
+      await consumeEquivalentDeliveryBudget();
     }
+  } catch (error) {
+    console.error('password-reset-delivery-failed', error instanceof Error ? error.message : 'unknown');
   }
 
-  await waitUntil(startedAt, DELIVERY_BUDGET_MS);
+  await waitUntil(startedAt, RESPONSE_BUDGET_MS);
   return NextResponse.json(genericResponse, { status: 202 });
 }
