@@ -44,12 +44,13 @@ test('protects ranking page and renders an official estimate for an authenticate
     await page.getByRole('button', { name: 'Criar conta' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
 
-    await page.goto('/ranking');
+    await page.getByRole('link', { name: 'Estimador' }).click();
+    await expect(page).toHaveURL(/\/ranking$/);
     await expect(page.getByRole('heading', { name: 'Estimador de classificação' })).toBeVisible();
     await expect(page.getByLabel('Concurso')).toContainText(`Concurso UI ${suffix}`);
     await page.getByLabel('Concurso').selectOption(contest.id);
     await page.getByLabel('Cargo / modalidade').selectOption(position.id);
-    await page.getByLabel('Sua pontuação simulada').fill('75');
+    await page.getByLabel('Sua pontuação simulada').fill('75,5');
     await page.getByRole('button', { name: 'Estimar posição' }).click();
 
     await expect(page.getByText('~ 3º lugar')).toBeVisible();
