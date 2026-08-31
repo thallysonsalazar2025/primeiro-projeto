@@ -39,6 +39,11 @@ test('rejects an empty official distribution instead of fabricating a ranking', 
   assert.throws(() => estimateFromOfficialRanking(70, []), /Official ranking sample is empty/);
 });
 
+test('rejects invalid numbers in an official distribution', () => {
+  assert.throws(() => estimateFromOfficialRanking(Number.NaN, [{ score: 80 }]), /Score must be a finite number/);
+  assert.throws(() => estimateFromOfficialRanking(80, [{ score: Number.NaN }]), /Official ranking contains an invalid score/);
+});
+
 test('weights distinct historical distributions by board, cargo and subject similarity', () => {
   const history: HistoricalContest[] = [
     {
@@ -81,5 +86,34 @@ test('rejects future estimates without a minimally useful historical sample', ()
       { contestId: 'tiny', board: 'FGV', cargoFamily: 'TI', subjectSimilarity: 1, rows: [{ score: 80 }] },
     ]),
     /Insufficient historical data/,
+  );
+});
+
+test('rejects invalid future-estimator inputs instead of fabricating a position', () => {
+  const history: HistoricalContest[] = [{
+    contestId: 'fgv-ti',
+    board: 'FGV',
+    cargoFamily: 'TI',
+    subjectSimilarity: 1,
+    rows: Array.from({ length: 20 }, (_, index) => ({ score: index + 60 })),
+  }];
+
+  assert.throws(() => estimateForNewContest(101, 500, 'FGV', 'TI', history), /between 0 and 100/);
+  assert.throws(() => estimateForNewContest(75, 0, 'FGV', 'TI', history), /positive integer/);
+  assert.throws(() => estimateForNewContest(75, 500, '   ', 'TI', history), /Target board is required/);
+});
+
+test('rejects corrupted historical inputs before calculating confidence', () => {
+  const invalidHistory: HistoricalContest[] = [{
+    contestId: 'fgv-ti',
+    board: 'FGV',
+    cargoFamily: 'TI',
+    subjectSimilarity: 1,
+    rows: Array.from({ length: 20 }, (_, index) => ({ score: index === 10 ? Number.NaN : index + 60 })),
+  }];
+
+  assert.throws(
+    () => estimateForNewContest(75, 500, 'FGV', 'TI', invalidHistory),
+    /Historical ranking contains an invalid score/,
   );
 });
