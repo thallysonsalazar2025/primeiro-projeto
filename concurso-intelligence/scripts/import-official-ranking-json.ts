@@ -30,7 +30,7 @@ async function main() {
       const identity = {
         contestId: payload.contestId,
         positionId: payload.positionId ?? null,
-        candidateKey: row.candidateKey.trim(),
+        candidateKey: row.candidateKey,
         category: row.category,
       } as const;
 
@@ -44,7 +44,7 @@ async function main() {
         score: row.score,
         rank: row.rank ?? null,
         sourceUrl: payload.sourceUrl,
-        sourcePage: payload.sourcePage ?? null,
+        sourcePage: row.sourcePage ?? payload.sourcePage ?? null,
       };
 
       if (existing) {
