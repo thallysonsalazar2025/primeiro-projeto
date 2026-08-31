@@ -9,6 +9,8 @@ const schema = z.object({
   password: z.string().min(8).max(128),
 });
 
+const invalidLink = () => NextResponse.json({ error: 'Link inválido ou expirado.' }, { status: 400 });
+
 export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json());
   if (!parsed.success) {
@@ -18,25 +20,29 @@ export async function POST(request: Request) {
   const [encoded] = parsed.data.token.split('.');
   let userId = '';
   try {
-    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as { userId?: string };
-    userId = payload.userId ?? '';
+    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as { userId?: unknown };
+    userId = typeof payload.userId === 'string' ? payload.userId : '';
   } catch {
-    return NextResponse.json({ error: 'Link inválido ou expirado.' }, { status: 400 });
+    return invalidLink();
   }
 
-  const user = userId ? await prisma.user.findUnique({ where: { id: userId } }) : null;
+  if (!userId) return invalidLink();
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user || !verifyPasswordResetToken(parsed.data.token, user.passwordHash)) {
-    return NextResponse.json({ error: 'Link inválido ou expirado.' }, { status: 400 });
+    return invalidLink();
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
-  await prisma.user.update({
-    where: { id: user.id },
+  const updated = await prisma.user.updateMany({
+    where: { id: user.id, passwordHash: user.passwordHash },
     data: {
       passwordHash,
       sessionVersion: { increment: 1 },
     },
   });
+
+  if (updated.count !== 1) return invalidLink();
 
   return NextResponse.json({ ok: true });
 }
