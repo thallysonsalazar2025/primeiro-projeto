@@ -1,17 +1,19 @@
 import { z } from 'zod';
 
 export const rankingCategorySchema = z.enum(['GENERAL', 'BLACK', 'PCD', 'OTHER_QUOTA']);
+const nonBlankString = z.string().trim().min(1);
 
 export const officialRankingImportSchema = z.object({
-  contestId: z.string().min(1),
-  positionId: z.string().min(1).nullable().optional(),
+  contestId: nonBlankString,
+  positionId: nonBlankString.nullable().optional(),
   sourceUrl: z.string().url(),
   sourcePage: z.number().int().positive().nullable().optional(),
   rows: z.array(z.object({
-    candidateKey: z.string().min(1),
+    candidateKey: nonBlankString,
     score: z.number().finite(),
     rank: z.number().int().positive().nullable().optional(),
     category: rankingCategorySchema.default('GENERAL'),
+    sourcePage: z.number().int().positive().nullable().optional(),
   })).min(1),
 });
 
@@ -22,7 +24,7 @@ export function parseOfficialRankingImport(input: unknown): OfficialRankingImpor
 }
 
 export function buildRankingDedupKey(row: Pick<OfficialRankingImport['rows'][number], 'candidateKey' | 'category'>) {
-  return `${row.category}:${row.candidateKey.trim()}`;
+  return `${row.category}:${row.candidateKey}`;
 }
 
 export function assertNoDuplicateRankingRows(payload: OfficialRankingImport) {
