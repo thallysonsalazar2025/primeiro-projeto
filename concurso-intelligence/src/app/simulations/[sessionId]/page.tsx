@@ -9,12 +9,29 @@ type Question = { id: string; number: number | null; statement: string; choices:
 type Result = { totalQuestions: number; answered: number; correct: number; incorrect: number; blank: number; accuracy: number; elapsedMs: number };
 type ReviewDetail = { selected: string | null; correct: boolean | null; correctLabels: string[] };
 type SessionPayload = {
-  session: { id: string; questionCount: number; answeredCount: number; reviewQuestionIds: string[]; canResume: boolean; positionName: string | null };
+  session: {
+    id: string;
+    startedAt: string;
+    finishedAt: string | null;
+    questionCount: number;
+    answeredCount: number;
+    reviewQuestionIds: string[];
+    canResume: boolean;
+    positionName: string | null;
+  };
   questions: Question[];
   attemptsByQuestionId: Record<string, { selected: string | null; elapsedMs: number | null }>;
   result: Result | null;
   reviewByQuestionId: Record<string, ReviewDetail> | null;
 };
+
+function formatElapsed(elapsedMs: number) {
+  const totalSeconds = Math.floor(Math.max(0, elapsedMs) / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
+}
 
 export default function SimulationPage() {
   const params = useParams<{ sessionId: string }>();
@@ -26,6 +43,7 @@ export default function SimulationPage() {
   const [markingReview, setMarkingReview] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [sessionNow, setSessionNow] = useState(() => Date.now());
   const activeQuestionStartedAt = useRef(Date.now());
 
   useEffect(() => {
@@ -36,11 +54,26 @@ export default function SimulationPage() {
       })
       .then((payload: SessionPayload) => {
         activeQuestionStartedAt.current = Date.now();
+        setSessionNow(Date.now());
         setData(payload);
         setResult(payload.result);
       })
       .catch((cause: Error) => setError(cause.message));
   }, [sessionId]);
+
+  useEffect(() => {
+    if (!data?.session.canResume) return;
+    const intervalId = window.setInterval(() => setSessionNow(Date.now()), 1000);
+    return () => window.clearInterval(intervalId);
+  }, [data?.session.canResume]);
+
+  const sessionElapsedMs = useMemo(() => {
+    if (!data) return 0;
+    const startedAt = new Date(data.session.startedAt).getTime();
+    if (!Number.isFinite(startedAt)) return 0;
+    const finishedAt = data.session.finishedAt ? new Date(data.session.finishedAt).getTime() : sessionNow;
+    return Math.max(0, (Number.isFinite(finishedAt) ? finishedAt : sessionNow) - startedAt);
+  }, [data, sessionNow]);
 
   const answeredQuestionIds = useMemo(() => {
     if (!data) return new Set<string>();
@@ -145,6 +178,7 @@ export default function SimulationPage() {
         setData(refreshed);
         setResult(refreshed.result);
       } catch {
+        setSessionNow(Date.now());
         setResult(body.result);
         setData((current) => current ? { ...current, result: body.result ?? null, session: { ...current.session, canResume: false } } : current);
         setError('Simulado finalizado. A correção detalhada poderá ser carregada ao reabrir o resultado.');
@@ -165,6 +199,7 @@ export default function SimulationPage() {
         <Link href="/dashboard">← Voltar ao painel</Link>
         <h1>{data.session.positionName ?? 'Simulado'}</h1>
         <p style={{ color: '#64748b' }}>{data.session.answeredCount}/{data.session.questionCount} respondidas · {data.session.reviewQuestionIds.length} para revisão {data.session.canResume ? '· em andamento' : '· finalizado'}</p>
+        <p aria-label="Tempo decorrido" style={{ color: '#334155', fontWeight: 800 }}>⏱ Tempo decorrido: {formatElapsed(sessionElapsedMs)}</p>
         {error && <p style={{ color: '#b91c1c' }}>{error}</p>}
 
         <nav aria-label="Navegação entre questões" style={navigatorStyle}>
