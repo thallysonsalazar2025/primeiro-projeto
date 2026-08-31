@@ -4,9 +4,14 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { verifyPasswordResetToken } from '@/lib/password-reset';
 
+const passwordSchema = z.string().min(8).max(128).refine(
+  (value) => Buffer.byteLength(value, 'utf8') <= 72,
+  { message: 'A senha deve ter no máximo 72 bytes em UTF-8.' },
+);
+
 const schema = z.object({
   token: z.string().min(20).max(4096),
-  password: z.string().min(8).max(128),
+  password: passwordSchema,
 });
 
 const invalidLink = () => NextResponse.json({ error: 'Link inválido ou expirado.' }, { status: 400 });
