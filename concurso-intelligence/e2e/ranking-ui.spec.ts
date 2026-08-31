@@ -55,7 +55,7 @@ test('protects ranking page and renders an official estimate for an authenticate
 
     await expect(page.getByText('~ 3º lugar')).toBeVisible();
     await expect(page.getByText(/Faixa estimada:/)).toBeVisible();
-    await expect(page.getByText(/não substitui o resultado publicado/i)).toBeVisible();
+    await expect(page.getByText(/não substitui a classificação publicada/i)).toBeVisible();
     await page.getByText('Fontes utilizadas').click();
     await expect(page.getByRole('link', { name: 'Documento oficial' })).toHaveAttribute('href', sourceUrl);
   } finally {
