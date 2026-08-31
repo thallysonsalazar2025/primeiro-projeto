@@ -23,6 +23,12 @@ export type RankingEstimate = {
   sampleSize: number;
 };
 
+export type OfficialRankingAggregate = {
+  total: number;
+  higher: number;
+  equal: number;
+};
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -33,28 +39,38 @@ function percentileAgainstScores(score: number, rows: RankingRow[]) {
   return belowOrEqual / rows.length;
 }
 
+export function estimateFromOfficialRankingAggregate(
+  aggregate: OfficialRankingAggregate,
+): RankingEstimate {
+  const { total, higher, equal } = aggregate;
+  if (total <= 0) throw new Error('Official ranking sample is empty');
+
+  const estimatedRank = higher + Math.max(1, Math.ceil(equal / 2));
+  const percentile = (total - higher) / total;
+  const uncertainty = Math.max(1, Math.ceil(equal / 2));
+  const lowerRank = Math.max(1, estimatedRank - uncertainty);
+  const upperRank = Math.max(estimatedRank, Math.min(total, estimatedRank + uncertainty));
+
+  return {
+    estimatedRank,
+    percentile,
+    lowerRank,
+    upperRank,
+    confidence: total >= 200 ? 'high' : total >= 50 ? 'medium' : 'low',
+    method: 'official-distribution',
+    sampleSize: total,
+  };
+}
+
 export function estimateFromOfficialRanking(
   score: number,
   rows: RankingRow[],
 ): RankingEstimate {
   if (!rows.length) throw new Error('Official ranking sample is empty');
 
-  const sorted = [...rows].sort((a, b) => b.score - a.score);
-  const higher = sorted.filter((row) => row.score > score).length;
-  const equal = sorted.filter((row) => row.score === score).length;
-  const estimatedRank = higher + Math.max(1, Math.ceil(equal / 2));
-  const percentile = percentileAgainstScores(score, sorted);
-  const uncertainty = Math.max(1, Math.ceil(equal / 2));
-
-  return {
-    estimatedRank,
-    percentile,
-    lowerRank: Math.max(1, estimatedRank - uncertainty),
-    upperRank: Math.min(sorted.length, estimatedRank + uncertainty),
-    confidence: sorted.length >= 200 ? 'high' : sorted.length >= 50 ? 'medium' : 'low',
-    method: 'official-distribution',
-    sampleSize: sorted.length,
-  };
+  const higher = rows.filter((row) => row.score > score).length;
+  const equal = rows.filter((row) => row.score === score).length;
+  return estimateFromOfficialRankingAggregate({ total: rows.length, higher, equal });
 }
 
 export function estimateForNewContest(
