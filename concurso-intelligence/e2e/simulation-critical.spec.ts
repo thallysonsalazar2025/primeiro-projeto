@@ -70,8 +70,10 @@ test('creates, resumes, reviews and finishes a simulation', async ({ page }) => 
 
     const timer = page.getByLabel('Tempo decorrido');
     await expect(timer).toHaveText(/Tempo decorrido: \d{2}:\d{2}:\d{2}/);
+    const initialTimerSeconds = elapsedTextToSeconds(await timer.textContent());
     await page.waitForTimeout(1100);
     const beforeReloadSeconds = elapsedTextToSeconds(await timer.textContent());
+    expect(beforeReloadSeconds).toBeGreaterThan(initialTimerSeconds);
 
     const correctAnswer = page.getByRole('radio', { name: /A\. Resposta correta/ });
     await correctAnswer.click();
