@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useMemo, useRef, useState } from 'react';
 
 type PositionOption = {
   id: string;
@@ -51,44 +51,67 @@ export function RankingEstimator({ contests }: Props) {
   const [result, setResult] = useState<RankingResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const requestIdRef = useRef(0);
+
+  function invalidatePendingRequest() {
+    requestIdRef.current += 1;
+    setLoading(false);
+    setResult(null);
+    setError(null);
+  }
 
   function changeContest(nextContestId: string) {
     const nextPositions = contests.find((contest) => contest.id === nextContestId)?.positions ?? [];
     const nextPosition = nextPositions[0];
+    invalidatePendingRequest();
     setContestId(nextContestId);
     setPositionId(nextPosition?.id ?? '');
     setCategory(nextPosition?.categories[0] ?? 'GENERAL');
-    setResult(null);
-    setError(null);
   }
 
   function changePosition(nextPositionId: string) {
     const nextPosition = positions.find((position) => position.id === nextPositionId);
+    invalidatePendingRequest();
     setPositionId(nextPositionId);
     setCategory(nextPosition?.categories[0] ?? 'GENERAL');
-    setResult(null);
-    setError(null);
+  }
+
+  function changeCategory(nextCategory: string) {
+    invalidatePendingRequest();
+    setCategory(nextCategory);
+  }
+
+  function changeScore(nextScore: string) {
+    invalidatePendingRequest();
+    setScore(nextScore);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const requestId = ++requestIdRef.current;
+    const normalizedScore = score.trim().replace(',', '.');
     setLoading(true);
     setResult(null);
     setError(null);
 
     try {
-      const query = new URLSearchParams({ contestId, positionId, category, score });
+      const query = new URLSearchParams({ contestId, positionId, category, score: normalizedScore });
       const response = await fetch(`/api/ranking/official?${query.toString()}`);
       const payload = await response.json().catch(() => null);
+      if (requestId !== requestIdRef.current) return;
       if (!response.ok) {
         setError(payload?.error ?? 'Não foi possível calcular a estimativa.');
         return;
       }
       setResult(payload as RankingResponse);
     } catch {
-      setError('Falha de conexão ao calcular a estimativa.');
+      if (requestId === requestIdRef.current) {
+        setError('Falha de conexão ao calcular a estimativa.');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }
 
@@ -115,14 +138,14 @@ export function RankingEstimator({ contests }: Props) {
 
         <label style={labelStyle}>
           Categoria
-          <select value={category} onChange={(event) => setCategory(event.target.value)} style={inputStyle} required>
+          <select value={category} onChange={(event) => changeCategory(event.target.value)} style={inputStyle} required>
             {(activePosition?.categories ?? []).map((item) => <option key={item} value={item}>{formatCategory(item)}</option>)}
           </select>
         </label>
 
         <label style={labelStyle}>
           Sua pontuação simulada
-          <input value={score} onChange={(event) => setScore(event.target.value)} inputMode="decimal" placeholder="Ex.: 72.5" style={inputStyle} required />
+          <input value={score} onChange={(event) => changeScore(event.target.value)} inputMode="decimal" placeholder="Ex.: 72,5" style={inputStyle} required />
         </label>
 
         <button disabled={loading || !positionId || !category} type="submit" style={{ border: 0, borderRadius: 12, padding: '12px 16px', fontWeight: 800, background: '#4f46e5', color: '#fff', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}>
