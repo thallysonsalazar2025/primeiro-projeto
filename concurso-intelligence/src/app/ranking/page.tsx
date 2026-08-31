@@ -9,17 +9,30 @@ export default async function RankingPage() {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const rows = await prisma.officialRankingRow.findMany({
+  const rankingGroups = await prisma.officialRankingRow.groupBy({
+    by: ['contestId', 'positionId', 'category'],
     where: { positionId: { not: null } },
-    select: {
-      category: true,
-      contest: { select: { id: true, name: true, year: true } },
-      position: { select: { id: true, name: true, area: true } },
-    },
-    distinct: ['contestId', 'positionId', 'category'],
     orderBy: [{ contestId: 'asc' }, { positionId: 'asc' }, { category: 'asc' }],
   });
 
+  const contestIds = Array.from(new Set(rankingGroups.map((row) => row.contestId)));
+  const positionIds = Array.from(
+    new Set(rankingGroups.flatMap((row) => (row.positionId ? [row.positionId] : []))),
+  );
+
+  const [contestRows, positionRows] = await Promise.all([
+    prisma.contest.findMany({
+      where: { id: { in: contestIds } },
+      select: { id: true, name: true, year: true },
+    }),
+    prisma.contestPosition.findMany({
+      where: { id: { in: positionIds } },
+      select: { id: true, contestId: true, name: true, area: true },
+    }),
+  ]);
+
+  const contestById = new Map(contestRows.map((contest) => [contest.id, contest]));
+  const positionById = new Map(positionRows.map((position) => [position.id, position]));
   const contests = new Map<string, {
     id: string;
     name: string;
@@ -27,21 +40,25 @@ export default async function RankingPage() {
     positions: Map<string, { id: string; name: string; area: string | null; categories: Set<string> }>;
   }>();
 
-  for (const row of rows) {
-    if (!row.position) continue;
-    const contest = contests.get(row.contest.id) ?? {
-      id: row.contest.id,
-      name: row.contest.name,
-      year: row.contest.year,
+  for (const group of rankingGroups) {
+    if (!group.positionId) continue;
+    const contestRow = contestById.get(group.contestId);
+    const positionRow = positionById.get(group.positionId);
+    if (!contestRow || !positionRow || positionRow.contestId !== contestRow.id) continue;
+
+    const contest = contests.get(contestRow.id) ?? {
+      id: contestRow.id,
+      name: contestRow.name,
+      year: contestRow.year,
       positions: new Map(),
     };
-    const position = contest.positions.get(row.position.id) ?? {
-      id: row.position.id,
-      name: row.position.name,
-      area: row.position.area,
+    const position = contest.positions.get(positionRow.id) ?? {
+      id: positionRow.id,
+      name: positionRow.name,
+      area: positionRow.area,
       categories: new Set<string>(),
     };
-    position.categories.add(row.category);
+    position.categories.add(group.category);
     contest.positions.set(position.id, position);
     contests.set(contest.id, contest);
   }
