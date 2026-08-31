@@ -22,6 +22,19 @@ test('estimates rank and percentile from an official distribution with ties', ()
   });
 });
 
+test('keeps an estimate below the minimum imported score inside its interval', () => {
+  const result = estimateFromOfficialRanking(50, [
+    { score: 90 },
+    { score: 80 },
+    { score: 70 },
+  ]);
+
+  assert.equal(result.estimatedRank, 4);
+  assert.equal(result.percentile, 0);
+  assert.equal(result.lowerRank, 3);
+  assert.equal(result.upperRank, 4);
+});
+
 test('rejects an empty official distribution instead of fabricating a ranking', () => {
   assert.throws(() => estimateFromOfficialRanking(70, []), /Official ranking sample is empty/);
 });
