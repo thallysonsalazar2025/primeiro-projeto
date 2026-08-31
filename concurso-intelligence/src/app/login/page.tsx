@@ -21,26 +21,31 @@ export default function LoginPage() {
     const payload = Object.fromEntries(form.entries());
     const endpoint = mode === 'forgot' ? '/api/auth/password/forgot' : `/api/auth/${mode}`;
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const body = await response.json();
-    setLoading(false);
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const body = await response.json();
 
-    if (!response.ok) {
-      setError(body.error ?? 'Não foi possível concluir a solicitação.');
-      return;
+      if (!response.ok) {
+        setError(body.error ?? 'Não foi possível concluir a solicitação.');
+        return;
+      }
+
+      if (mode === 'forgot') {
+        setMessage(body.message ?? 'Confira as instruções para redefinir sua senha.');
+        return;
+      }
+
+      router.push('/dashboard');
+      router.refresh();
+    } catch {
+      setError('Não foi possível conectar. Tente novamente.');
+    } finally {
+      setLoading(false);
     }
-
-    if (mode === 'forgot') {
-      setMessage(body.message ?? 'Confira as instruções para redefinir sua senha.');
-      return;
-    }
-
-    router.push('/dashboard');
-    router.refresh();
   }
 
   const title = mode === 'login' ? 'Entrar' : mode === 'register' ? 'Criar conta' : 'Recuperar senha';
