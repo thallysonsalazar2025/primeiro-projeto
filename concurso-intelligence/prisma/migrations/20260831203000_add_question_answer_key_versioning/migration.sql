@@ -11,7 +11,12 @@ CREATE TABLE "QuestionAnswerKey" (
     "publishedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "QuestionAnswerKey_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "QuestionAnswerKey_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "QuestionAnswerKey_version_positive_check" CHECK ("version" > 0),
+    CONSTRAINT "QuestionAnswerKey_answer_annulment_check" CHECK (
+      ("isAnnulled" = true AND "answer" IS NULL)
+      OR ("isAnnulled" = false AND "answer" IS NOT NULL)
+    )
 );
 
 CREATE UNIQUE INDEX "QuestionAnswerKey_questionId_version_key"
