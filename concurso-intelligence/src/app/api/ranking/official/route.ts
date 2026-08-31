@@ -4,13 +4,22 @@ import { z } from 'zod';
 
 import { getCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { estimateFromOfficialRanking } from '@/lib/ranking';
+import { estimateFromOfficialRankingAggregate } from '@/lib/ranking';
+
+const scoreSchema = z.string().trim().min(1).transform((value, ctx) => {
+  const score = Number(value);
+  if (!Number.isFinite(score)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Score must be a finite number' });
+    return z.NEVER;
+  }
+  return score;
+});
 
 const querySchema = z.object({
   contestId: z.string().min(1),
   positionId: z.string().min(1),
   category: z.nativeEnum(RankingCategory).default(RankingCategory.GENERAL),
-  score: z.coerce.number().finite(),
+  score: scoreSchema,
 });
 
 export async function GET(request: NextRequest) {
@@ -25,25 +34,27 @@ export async function GET(request: NextRequest) {
   }
 
   const { contestId, positionId, category, score } = parsed.data;
-  const rows = await prisma.officialRankingRow.findMany({
-    where: { contestId, positionId, category },
-    select: { score: true, rank: true, category: true, sourceUrl: true, importedAt: true },
-    orderBy: [{ score: 'desc' }, { rank: 'asc' }],
-  });
+  const where = { contestId, positionId, category };
 
-  if (!rows.length) {
+  const [total, higher, equal, sourceRows, importAggregate] = await Promise.all([
+    prisma.officialRankingRow.count({ where }),
+    prisma.officialRankingRow.count({ where: { ...where, score: { gt: score } } }),
+    prisma.officialRankingRow.count({ where: { ...where, score } }),
+    prisma.officialRankingRow.findMany({
+      where,
+      select: { sourceUrl: true, sourcePage: true },
+      distinct: ['sourceUrl', 'sourcePage'],
+      orderBy: [{ sourceUrl: 'asc' }, { sourcePage: 'asc' }],
+    }),
+    prisma.officialRankingRow.aggregate({ where, _max: { importedAt: true } }),
+  ]);
+
+  if (!total) {
     return NextResponse.json({ error: 'Official ranking distribution not found' }, { status: 404 });
   }
 
-  const estimate = estimateFromOfficialRanking(
-    score,
-    rows.map((row) => ({ score: Number(row.score), rank: row.rank, category: row.category })),
-  );
-  const sources = [...new Set(rows.map((row) => row.sourceUrl))];
-  const lastImportedAt = rows.reduce(
-    (latest, row) => (row.importedAt > latest ? row.importedAt : latest),
-    rows[0].importedAt,
-  );
+  const estimate = estimateFromOfficialRankingAggregate({ total, higher, equal });
+  const sources = sourceRows.map(({ sourceUrl, sourcePage }) => ({ url: sourceUrl, page: sourcePage }));
 
   return NextResponse.json({
     contestId,
@@ -51,7 +62,7 @@ export async function GET(request: NextRequest) {
     category,
     score,
     estimate,
-    provenance: { sources, lastImportedAt },
+    provenance: { sources, lastImportedAt: importAggregate._max.importedAt },
     disclaimer: 'Estimativa calculada sobre distribuição oficial importada; não substitui a classificação publicada pelo órgão.',
   });
 }
