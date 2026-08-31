@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createPasswordResetToken, verifyPasswordResetToken } from './password-reset';
+import { createPasswordResetToken, verifyPasswordResetToken } from './password-reset.ts';
 
 process.env.PASSWORD_RESET_SECRET = 'test-reset-secret-with-enough-entropy';
 
