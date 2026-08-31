@@ -219,6 +219,7 @@ model OfficialRankingRow {
   sourcePage   Int?
   importedAt   DateTime         @default(now())
 
+  @@unique([contestId, positionId, candidateKey, category])
   @@index([contestId, positionId, category, score])
 }
 
@@ -258,10 +259,9 @@ enum QuestionStatus {
 
 enum SourceType {
   OFFICIAL_PDF
-  OFFICIAL_WEB
+  OFFICIAL_HTML
+  PUBLIC_API
   OPEN_DATASET
-  GITHUB_REPOSITORY
-  MANUAL
 }
 
 enum RankingCategory {
