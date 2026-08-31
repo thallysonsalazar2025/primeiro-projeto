@@ -39,6 +39,12 @@ function percentileAgainstScores(score: number, rows: RankingRow[]) {
   return belowOrEqual / rows.length;
 }
 
+function assertFiniteScore(score: number, label: string) {
+  if (!Number.isFinite(score)) {
+    throw new Error(`${label} must be a finite number`);
+  }
+}
+
 export function estimateFromOfficialRankingAggregate(
   aggregate: OfficialRankingAggregate,
 ): RankingEstimate {
@@ -66,7 +72,11 @@ export function estimateFromOfficialRanking(
   score: number,
   rows: RankingRow[],
 ): RankingEstimate {
+  assertFiniteScore(score, 'Score');
   if (!rows.length) throw new Error('Official ranking sample is empty');
+  if (rows.some((row) => !Number.isFinite(row.score))) {
+    throw new Error('Official ranking contains an invalid score');
+  }
 
   const higher = rows.filter((row) => row.score > score).length;
   const equal = rows.filter((row) => row.score === score).length;
@@ -80,8 +90,32 @@ export function estimateForNewContest(
   targetCargoFamily: string | undefined,
   history: HistoricalContest[],
 ): RankingEstimate {
+  assertFiniteScore(simulatedScorePercent, 'Simulated score');
+  if (simulatedScorePercent < 0 || simulatedScorePercent > 100) {
+    throw new Error('Simulated score must be between 0 and 100');
+  }
+  if (!Number.isInteger(expectedCandidates) || expectedCandidates <= 0) {
+    throw new Error('Expected candidates must be a positive integer');
+  }
+  if (!targetBoard.trim()) {
+    throw new Error('Target board is required');
+  }
+
   const usable = history.filter((h) => h.rows.length >= 20);
   if (!usable.length) throw new Error('Insufficient historical data');
+
+  for (const contest of usable) {
+    if (!contest.board.trim()) throw new Error('Historical contest board is required');
+    if (!Number.isFinite(contest.subjectSimilarity)) {
+      throw new Error('Historical subject similarity must be finite');
+    }
+    if (contest.weight !== undefined && (!Number.isFinite(contest.weight) || contest.weight <= 0)) {
+      throw new Error('Historical contest weight must be positive and finite');
+    }
+    if (contest.rows.some((row) => !Number.isFinite(row.score))) {
+      throw new Error('Historical ranking contains an invalid score');
+    }
+  }
 
   let weightedPercentile = 0;
   let totalWeight = 0;
