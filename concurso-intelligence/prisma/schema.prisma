@@ -134,7 +134,7 @@ model Question {
   statement          String
   explanation        String?
   questionType       QuestionType         @default(MULTIPLE_CHOICE)
-  status             QuestionStatus       @default(ACTIVE)
+  status             QuestionStatus        @default(ACTIVE)
   sourceUrl          String?
   sourcePage         Int?
   sourceLabel        String?
@@ -206,18 +206,18 @@ model QuestionAttempt {
 }
 
 model OfficialRankingRow {
-  id           String           @id @default(cuid())
+  id           String          @id @default(cuid())
   contestId    String
-  contest      Contest          @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  positionId   String?
-  position     ContestPosition? @relation(fields: [positionId], references: [id])
+  contest      Contest         @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  positionId   String
+  position     ContestPosition @relation(fields: [positionId], references: [id])
   candidateKey String
-  score        Decimal          @db.Decimal(10, 4)
+  score        Decimal         @db.Decimal(10, 4)
   rank         Int?
-  category     RankingCategory  @default(GENERAL)
+  category     RankingCategory @default(GENERAL)
   sourceUrl    String
   sourcePage   Int?
-  importedAt   DateTime         @default(now())
+  importedAt   DateTime        @default(now())
 
   @@unique([contestId, positionId, candidateKey, category])
   @@index([contestId, positionId, category, score])
