@@ -28,6 +28,7 @@ test('returns authenticated estimate from an official ranking distribution', asy
       rank: index + 1,
       category: 'GENERAL',
       sourceUrl,
+      sourcePage: index < 2 ? 10 : 11,
     })),
   });
 
@@ -44,6 +45,11 @@ test('returns authenticated estimate from an official ranking distribution', asy
     await page.getByRole('button', { name: 'Criar conta' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
 
+    const blankScore = await page.request.get(
+      `/api/ranking/official?contestId=${contest.id}&positionId=${position.id}&category=GENERAL&score=`,
+    );
+    expect(blankScore.status()).toBe(400);
+
     const response = await page.request.get(`/api/ranking/official?${query}`);
     expect(response.status()).toBe(200);
     const payload = await response.json();
@@ -54,9 +60,19 @@ test('returns authenticated estimate from an official ranking distribution', asy
       sampleSize: 4,
       confidence: 'low',
     });
-    expect(payload.provenance.sources).toEqual([sourceUrl]);
+    expect(payload.provenance.sources).toEqual([
+      { url: sourceUrl, page: 10 },
+      { url: sourceUrl, page: 11 },
+    ]);
     expect(payload.disclaimer).toMatch(/não substitui a classificação publicada/i);
     expect(JSON.stringify(payload)).not.toContain('candidate-');
+
+    const belowMinimum = await page.request.get(
+      `/api/ranking/official?contestId=${contest.id}&positionId=${position.id}&category=GENERAL&score=50`,
+    );
+    expect(belowMinimum.status()).toBe(200);
+    const belowPayload = await belowMinimum.json();
+    expect(belowPayload.estimate).toMatchObject({ estimatedRank: 5, lowerRank: 4, upperRank: 5, percentile: 0 });
   } finally {
     const user = await prisma.user.findUnique({ where: { email } });
     if (user) await prisma.user.delete({ where: { id: user.id } });
