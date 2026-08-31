@@ -179,41 +179,31 @@ model StudySession {
   id                String            @id @default(cuid())
   userId            String
   user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  contestId         String?
   boardId           String?
-  positionId        String?
-  subjectId         String?
-  topicId           String?
-  mode              StudySessionMode  @default(PRACTICE)
-  requestedCount    Int
-  status            StudySessionStatus @default(IN_PROGRESS)
+  positionName      String?
+  questionIds       String[]          @default([])
+  reviewQuestionIds String[]          @default([])
   startedAt         DateTime          @default(now())
   finishedAt        DateTime?
-  currentIndex      Int               @default(0)
-  elapsedSeconds    Int               @default(0)
   attempts          QuestionAttempt[]
-
-  @@index([userId, status, startedAt])
 }
 
 model QuestionAttempt {
-  id             String       @id @default(cuid())
-  userId         String
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sessionId      String?
-  session        StudySession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  questionId     String
-  question       Question     @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  selectedChoice String?
-  correct        Boolean?
-  markedReview   Boolean      @default(false)
-  answeredAt     DateTime?
-  elapsedSeconds Int          @default(0)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id         String        @id @default(cuid())
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId  String?
+  session    StudySession? @relation(fields: [sessionId], references: [id])
+  questionId String
+  question   Question      @relation(fields: [questionId], references: [id])
+  selected   String?
+  correct    Boolean
+  answeredAt DateTime      @default(now())
+  elapsedMs  Int?
+  confidence Int?
 
-  @@unique([sessionId, questionId])
-  @@index([userId, createdAt])
+  @@index([userId, answeredAt])
+  @@index([userId, questionId])
 }
 
 model OfficialRankingRow {
@@ -221,11 +211,11 @@ model OfficialRankingRow {
   contestId    String
   contest      Contest         @relation(fields: [contestId], references: [id], onDelete: Cascade)
   positionId   String
-  position     ContestPosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  position     ContestPosition @relation(fields: [positionId], references: [id])
   candidateKey String
+  score        Decimal         @db.Decimal(10, 4)
+  rank         Int?
   category     RankingCategory @default(GENERAL)
-  score        Float
-  officialRank Int?
   sourceUrl    String
   sourcePage   Int?
   importedAt   DateTime        @default(now())
@@ -235,24 +225,25 @@ model OfficialRankingRow {
 }
 
 model UserContestTarget {
-  id         String          @id @default(cuid())
-  userId     String
-  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  contestId  String
-  contest    Contest         @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  positionId String?
-  targetScore Float?
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contestId   String
+  contest     Contest  @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  positionId  String?
+  targetScore Decimal? @db.Decimal(10, 4)
+  createdAt   DateTime @default(now())
 
   @@unique([userId, contestId, positionId])
 }
 
 enum ContestStatus {
   PLANNED
-  OPEN
+  REGISTRATION_OPEN
+  EXAM_SCHEDULED
+  RESULTS_PENDING
+  RESULTS_PUBLISHED
   CLOSED
-  COMPLETED
 }
 
 enum QuestionType {
@@ -263,30 +254,21 @@ enum QuestionType {
 enum QuestionStatus {
   ACTIVE
   ANNULLED
-  DISPUTED
   OUTDATED
+  REVIEW_REQUIRED
 }
 
 enum SourceType {
   OFFICIAL_PDF
   OFFICIAL_WEB
+  OPEN_DATASET
   GITHUB_REPOSITORY
   MANUAL
 }
 
-enum StudySessionMode {
-  PRACTICE
-  EXAM
-}
-
-enum StudySessionStatus {
-  IN_PROGRESS
-  FINISHED
-  ABANDONED
-}
-
 enum RankingCategory {
   GENERAL
-  PCD
   BLACK
+  PCD
+  OTHER_QUOTA
 }
