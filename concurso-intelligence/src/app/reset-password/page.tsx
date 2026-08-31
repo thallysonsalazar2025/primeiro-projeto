@@ -1,9 +1,9 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token') ?? '';
@@ -24,21 +24,26 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    const response = await fetch('/api/auth/password/reset', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ token, password }),
-    });
-    const body = await response.json();
-    setLoading(false);
+    try {
+      const response = await fetch('/api/auth/password/reset', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token, password }),
+      });
+      const body = await response.json();
 
-    if (!response.ok) {
-      setError(body.error ?? 'Não foi possível redefinir a senha.');
-      return;
+      if (!response.ok) {
+        setError(body.error ?? 'Não foi possível redefinir a senha.');
+        return;
+      }
+
+      router.push('/login');
+      router.refresh();
+    } catch {
+      setError('Falha de comunicação. Tente novamente.');
+    } finally {
+      setLoading(false);
     }
-
-    router.push('/login');
-    router.refresh();
   }
 
   return (
@@ -60,6 +65,14 @@ export default function ResetPasswordPage() {
         )}
       </section>
     </main>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>Carregando...</main>}>
+      <ResetPasswordForm />
+    </Suspense>
   );
 }
 
