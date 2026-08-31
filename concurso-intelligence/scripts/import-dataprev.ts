@@ -49,6 +49,35 @@ function subjectFor(questionNumber: number) {
   return SUBJECTS.find((subject) => questionNumber >= subject.from && questionNumber <= subject.to)!;
 }
 
+async function appendFinalAnswerKey(questionId: string, answer: string) {
+  const normalizedAnswer = answer === "*" ? null : answer;
+  const isAnnulled = answer === "*";
+  const latest = await prisma.questionAnswerKey.findFirst({
+    where: { questionId },
+    orderBy: { version: "desc" },
+  });
+
+  if (
+    latest &&
+    latest.kind === AnswerKeyKind.FINAL &&
+    latest.answer === normalizedAnswer &&
+    latest.isAnnulled === isAnnulled
+  ) {
+    return latest;
+  }
+
+  return prisma.questionAnswerKey.create({
+    data: {
+      questionId,
+      version: (latest?.version ?? 0) + 1,
+      kind: AnswerKeyKind.FINAL,
+      answer: normalizedAnswer,
+      isAnnulled,
+      sourceUrl: "legacy://primeiro-projeto/index.html",
+    },
+  });
+}
+
 async function validatePersistedImport(examId: string, expectedKey: string[]) {
   const persisted = await prisma.question.findMany({
     where: { examId },
@@ -73,7 +102,7 @@ async function validatePersistedImport(examId: string, expectedKey: string[]) {
     const number = question.number!;
     const expectedAnswer = expectedKey[number - 1];
     const correctChoices = question.choices.filter((choice) => choice.isCorrect);
-    const finalKey = question.answerKeys.find((entry) => entry.kind === AnswerKeyKind.FINAL && entry.version === 1);
+    const finalKey = [...question.answerKeys].reverse().find((entry) => entry.kind === AnswerKeyKind.FINAL);
 
     if (question.choices.length === 0) {
       throw new Error(`Validação pós-import falhou: questão ${number} sem alternativas persistidas`);
@@ -198,23 +227,7 @@ async function main() {
       });
     }
 
-    await prisma.questionAnswerKey.upsert({
-      where: { questionId_version: { questionId: saved.id, version: 1 } },
-      update: {
-        kind: AnswerKeyKind.FINAL,
-        answer: answer === "*" ? null : answer,
-        isAnnulled: answer === "*",
-        sourceUrl: "legacy://primeiro-projeto/index.html",
-      },
-      create: {
-        questionId: saved.id,
-        version: 1,
-        kind: AnswerKeyKind.FINAL,
-        answer: answer === "*" ? null : answer,
-        isAnnulled: answer === "*",
-        sourceUrl: "legacy://primeiro-projeto/index.html",
-      },
-    });
+    await appendFinalAnswerKey(saved.id, answer);
 
     const existingProvenance = await prisma.questionProvenance.findFirst({
       where: { questionId: saved.id, sourceType: SourceType.GITHUB_REPOSITORY, sourceUrl: "legacy://primeiro-projeto" },
