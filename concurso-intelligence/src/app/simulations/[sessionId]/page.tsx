@@ -9,6 +9,7 @@ type Question = { id: string; number: number | null; statement: string; choices:
 type Result = { totalQuestions: number; answered: number; correct: number; incorrect: number; blank: number; accuracy: number; elapsedMs: number };
 type ReviewDetail = { selected: string | null; correct: boolean | null; correctLabels: string[] };
 type SessionPayload = {
+  serverNow: string;
   session: {
     id: string;
     startedAt: string;
@@ -43,8 +44,21 @@ export default function SimulationPage() {
   const [markingReview, setMarkingReview] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [sessionNow, setSessionNow] = useState(() => Date.now());
+  const [sessionTick, setSessionTick] = useState(0);
   const activeQuestionStartedAt = useRef(Date.now());
+  const sessionTimerAnchor = useRef<{ elapsedMs: number; monotonicMs: number } | null>(null);
+
+  function anchorSessionTimer(payload: SessionPayload) {
+    const startedAt = new Date(payload.session.startedAt).getTime();
+    const serverNow = new Date(payload.serverNow).getTime();
+    const finishedAt = payload.session.finishedAt ? new Date(payload.session.finishedAt).getTime() : null;
+    const authoritativeNow = finishedAt ?? serverNow;
+    const elapsedMs = Number.isFinite(startedAt) && Number.isFinite(authoritativeNow)
+      ? Math.max(0, authoritativeNow - startedAt)
+      : 0;
+    sessionTimerAnchor.current = { elapsedMs, monotonicMs: performance.now() };
+    setSessionTick((current) => current + 1);
+  }
 
   useEffect(() => {
     fetch(`/api/simulations/${sessionId}`)
@@ -54,7 +68,7 @@ export default function SimulationPage() {
       })
       .then((payload: SessionPayload) => {
         activeQuestionStartedAt.current = Date.now();
-        setSessionNow(Date.now());
+        anchorSessionTimer(payload);
         setData(payload);
         setResult(payload.result);
       })
@@ -63,7 +77,7 @@ export default function SimulationPage() {
 
   useEffect(() => {
     if (!data?.session.canResume) return;
-    const intervalId = window.setInterval(() => setSessionNow(Date.now()), 1000);
+    const intervalId = window.setInterval(() => setSessionTick((current) => current + 1), 1000);
     return () => window.clearInterval(intervalId);
   }, [data?.session.canResume]);
 
@@ -71,9 +85,14 @@ export default function SimulationPage() {
     if (!data) return 0;
     const startedAt = new Date(data.session.startedAt).getTime();
     if (!Number.isFinite(startedAt)) return 0;
-    const finishedAt = data.session.finishedAt ? new Date(data.session.finishedAt).getTime() : sessionNow;
-    return Math.max(0, (Number.isFinite(finishedAt) ? finishedAt : sessionNow) - startedAt);
-  }, [data, sessionNow]);
+    if (data.session.finishedAt) {
+      const finishedAt = new Date(data.session.finishedAt).getTime();
+      return Number.isFinite(finishedAt) ? Math.max(0, finishedAt - startedAt) : 0;
+    }
+    const anchor = sessionTimerAnchor.current;
+    if (!anchor) return 0;
+    return anchor.elapsedMs + Math.max(0, performance.now() - anchor.monotonicMs);
+  }, [data, sessionTick]);
 
   const answeredQuestionIds = useMemo(() => {
     if (!data) return new Set<string>();
@@ -164,8 +183,8 @@ export default function SimulationPage() {
 
     try {
       const response = await fetch(`/api/simulations/${sessionId}/finish`, { method: 'POST' });
-      const body = await response.json().catch(() => null) as { result?: Result; error?: string } | null;
-      if (!response.ok || !body?.result) {
+      const body = await response.json().catch(() => null) as { result?: Result; session?: { finishedAt?: string }; error?: string } | null;
+      if (!response.ok || !body?.result || !body.session?.finishedAt) {
         throw new Error(body?.error ?? 'Falha ao finalizar simulado');
       }
 
@@ -175,12 +194,16 @@ export default function SimulationPage() {
         if (!refreshedResponse.ok || !refreshed) {
           throw new Error('Falha ao carregar correção detalhada');
         }
+        anchorSessionTimer(refreshed);
         setData(refreshed);
         setResult(refreshed.result);
       } catch {
-        setSessionNow(Date.now());
         setResult(body.result);
-        setData((current) => current ? { ...current, result: body.result ?? null, session: { ...current.session, canResume: false } } : current);
+        setData((current) => current ? {
+          ...current,
+          result: body.result ?? null,
+          session: { ...current.session, canResume: false, finishedAt: body.session?.finishedAt ?? current.session.finishedAt },
+        } : current);
         setError('Simulado finalizado. A correção detalhada poderá ser carregada ao reabrir o resultado.');
       }
     } catch (cause) {
