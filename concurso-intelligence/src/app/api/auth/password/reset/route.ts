@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { verifyPasswordResetToken } from '@/lib/password-reset';
 
 const schema = z.object({
-  token: z.string().min(20),
+  token: z.string().min(20).max(4096),
   password: z.string().min(8).max(128),
 });
 
@@ -30,7 +30,13 @@ export async function POST(request: Request) {
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
-  await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      passwordHash,
+      sessionVersion: { increment: 1 },
+    },
+  });
 
   return NextResponse.json({ ok: true });
 }
