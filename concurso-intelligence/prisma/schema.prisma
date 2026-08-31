@@ -259,9 +259,10 @@ enum QuestionStatus {
 
 enum SourceType {
   OFFICIAL_PDF
-  OFFICIAL_HTML
-  PUBLIC_API
+  OFFICIAL_WEB
   OPEN_DATASET
+  GITHUB_REPOSITORY
+  MANUAL
 }
 
 enum RankingCategory {
