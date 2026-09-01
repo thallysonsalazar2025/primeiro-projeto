@@ -39,6 +39,11 @@ test('rejects an empty official distribution instead of fabricating a ranking', 
   assert.throws(() => estimateFromOfficialRanking(70, []), /Official ranking sample is empty/);
 });
 
+test('rejects invalid numbers in an official distribution', () => {
+  assert.throws(() => estimateFromOfficialRanking(Number.NaN, [{ score: 80 }]), /Score must be a finite number/);
+  assert.throws(() => estimateFromOfficialRanking(80, [{ score: Number.NaN }]), /Official ranking contains an invalid score/);
+});
+
 test('weights distinct historical distributions by board, cargo and subject similarity', () => {
   const history: HistoricalContest[] = [
     {
@@ -75,6 +80,29 @@ test('weights distinct historical distributions by board, cargo and subject simi
   assert.equal(result.upperRank, 430);
 });
 
+test('normalizes board names before applying historical weights', () => {
+  const history: HistoricalContest[] = [
+    {
+      contestId: 'fgv-ti',
+      board: 'FGV',
+      cargoFamily: 'TI',
+      subjectSimilarity: 1,
+      rows: Array.from({ length: 20 }, (_, index) => ({ score: index + 70 })),
+    },
+    {
+      contestId: 'cespe-ti',
+      board: 'CESPE',
+      cargoFamily: 'TI',
+      subjectSimilarity: 1,
+      rows: Array.from({ length: 20 }, (_, index) => ({ score: index + 50 })),
+    },
+  ];
+
+  const normalized = estimateForNewContest(80, 500, 'FGV', 'TI', history);
+  const padded = estimateForNewContest(80, 500, '  FGV  ', 'TI', history);
+  assert.deepEqual(padded, normalized);
+});
+
 test('rejects future estimates without a minimally useful historical sample', () => {
   assert.throws(
     () => estimateForNewContest(75, 500, 'FGV', 'TI', [
@@ -82,4 +110,82 @@ test('rejects future estimates without a minimally useful historical sample', ()
     ]),
     /Insufficient historical data/,
   );
+});
+
+test('rejects invalid future-estimator inputs instead of fabricating a position', () => {
+  const history: HistoricalContest[] = [{
+    contestId: 'fgv-ti',
+    board: 'FGV',
+    cargoFamily: 'TI',
+    subjectSimilarity: 1,
+    rows: Array.from({ length: 20 }, (_, index) => ({ score: index + 60 })),
+  }];
+
+  assert.throws(() => estimateForNewContest(101, 500, 'FGV', 'TI', history), /between 0 and 100/);
+  assert.throws(() => estimateForNewContest(75, 0, 'FGV', 'TI', history), /positive integer/);
+  assert.throws(() => estimateForNewContest(75, 500, '   ', 'TI', history), /Target board is required/);
+});
+
+test('rejects corrupted historical inputs before calculating confidence', () => {
+  const baseRows = Array.from({ length: 20 }, (_, index) => ({ score: index + 60 }));
+
+  assert.throws(
+    () => estimateForNewContest(75, 500, 'FGV', 'TI', [{
+      contestId: 'bad-score',
+      board: 'FGV',
+      cargoFamily: 'TI',
+      subjectSimilarity: 1,
+      rows: baseRows.map((row, index) => ({ score: index === 10 ? Number.NaN : row.score })),
+    }]),
+    /Historical ranking score must be between 0 and 100/,
+  );
+
+  assert.throws(
+    () => estimateForNewContest(75, 500, 'FGV', 'TI', [{
+      contestId: 'score-over-scale',
+      board: 'FGV',
+      cargoFamily: 'TI',
+      subjectSimilarity: 1,
+      rows: baseRows.map((row, index) => ({ score: index === 10 ? 101 : row.score })),
+    }]),
+    /Historical ranking score must be between 0 and 100/,
+  );
+
+  assert.throws(
+    () => estimateForNewContest(75, 500, 'FGV', 'TI', [{
+      contestId: 'bad-similarity',
+      board: 'FGV',
+      cargoFamily: 'TI',
+      subjectSimilarity: 1.1,
+      rows: baseRows,
+    }]),
+    /Historical subject similarity must be between 0 and 1/,
+  );
+});
+
+test('normalizes extreme finite weights to avoid overflow', () => {
+  const history: HistoricalContest[] = [
+    {
+      contestId: 'fgv-a',
+      board: 'FGV',
+      cargoFamily: 'TI',
+      subjectSimilarity: 1,
+      weight: Number.MAX_VALUE,
+      rows: Array.from({ length: 20 }, (_, index) => ({ score: index + 60 })),
+    },
+    {
+      contestId: 'fgv-b',
+      board: 'FGV',
+      cargoFamily: 'TI',
+      subjectSimilarity: 1,
+      weight: Number.MAX_VALUE,
+      rows: Array.from({ length: 20 }, (_, index) => ({ score: index + 70 })),
+    },
+  ];
+
+  const result = estimateForNewContest(75, 500, 'FGV', 'TI', history);
+  assert.ok(Number.isFinite(result.percentile));
+  assert.ok(Number.isFinite(result.estimatedRank));
+  assert.ok(Number.isFinite(result.lowerRank));
+  assert.ok(Number.isFinite(result.upperRank));
 });
