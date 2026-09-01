@@ -60,6 +60,11 @@ test('returns authenticated estimate from an official ranking distribution', asy
       sampleSize: 4,
       confidence: 'low',
     });
+    expect(payload.assumptions).toEqual([
+      expect.stringMatching(/mesmo concurso, cargo\/modalidade e categoria/i),
+      expect.stringMatching(/empates.+ponto médio/i),
+      expect.stringMatching(/tamanho da amostra oficial importada \(4 candidatos\)/i),
+    ]);
     expect(payload.provenance.sources).toEqual([
       { url: sourceUrl, page: 10 },
       { url: sourceUrl, page: 11 },
