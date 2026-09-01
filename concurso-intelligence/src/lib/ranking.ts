@@ -9,6 +9,8 @@ export type HistoricalContest = {
   board: string;
   cargoFamily?: string;
   subjectSimilarity: number; // 0..1
+  difficultySimilarity?: number; // 0..1
+  vacancySimilarity?: number; // 0..1
   rows: RankingRow[];
   weight?: number;
 };
@@ -48,6 +50,13 @@ function assertFiniteScore(score: number, label: string) {
 function assertOfficialRankingCount(value: number, label: string) {
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new Error(`${label} must be a non-negative safe integer`);
+  }
+}
+
+function assertOptionalSimilarity(value: number | undefined, label: string) {
+  if (value === undefined) return;
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error(`${label} must be between 0 and 1`);
   }
 }
 
@@ -132,6 +141,8 @@ export function estimateForNewContest(
     ) {
       throw new Error('Historical subject similarity must be between 0 and 1');
     }
+    assertOptionalSimilarity(contest.difficultySimilarity, 'Historical difficulty similarity');
+    assertOptionalSimilarity(contest.vacancySimilarity, 'Historical vacancy similarity');
     if (contest.weight !== undefined && (!Number.isFinite(contest.weight) || contest.weight <= 0)) {
       throw new Error('Historical contest weight must be positive and finite');
     }
@@ -145,7 +156,14 @@ export function estimateForNewContest(
     const cargoWeight = normalizedTargetCargoFamily
       && normalizeComparableText(contest.cargoFamily) === normalizedTargetCargoFamily ? 1 : 0.7;
     const similarityWeight = clamp(contest.subjectSimilarity, 0.2, 1);
-    const rawWeight = (contest.weight ?? 1) * boardWeight * cargoWeight * similarityWeight;
+    const difficultyWeight = clamp(contest.difficultySimilarity ?? 1, 0.2, 1);
+    const vacancyWeight = clamp(contest.vacancySimilarity ?? 1, 0.2, 1);
+    const rawWeight = (contest.weight ?? 1)
+      * boardWeight
+      * cargoWeight
+      * similarityWeight
+      * difficultyWeight
+      * vacancyWeight;
 
     return {
       contest,
