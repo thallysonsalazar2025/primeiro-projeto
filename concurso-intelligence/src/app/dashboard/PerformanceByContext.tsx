@@ -5,8 +5,6 @@ import { useEffect, useState } from 'react';
 type Performance = {
   boards: Array<{ boardId: string; boardName: string; acronym: string; attempts: number; correct: number; accuracy: number }>;
   contests: Array<{ contestId: string; contestName: string; year: number; attempts: number; correct: number; accuracy: number }>;
-  subjects: Array<{ subjectId: string; subjectName: string; attempts: number; correct: number; accuracy: number }>;
-  topics: Array<{ topicId: string; topicName: string; subjectName: string; attempts: number; correct: number; accuracy: number }>;
 };
 
 export function PerformanceByContext() {
@@ -53,28 +51,6 @@ export function PerformanceByContext() {
         items={data.contests.map((item) => ({
           id: item.contestId,
           name: `${item.contestName} · ${item.year}`,
-          attempts: item.attempts,
-          correct: item.correct,
-          accuracy: item.accuracy,
-        }))}
-      />
-      <PerformanceList
-        title="Desempenho por disciplina"
-        empty="Responda questões classificadas por disciplina para gerar este diagnóstico."
-        items={data.subjects.map((item) => ({
-          id: item.subjectId,
-          name: item.subjectName,
-          attempts: item.attempts,
-          correct: item.correct,
-          accuracy: item.accuracy,
-        }))}
-      />
-      <PerformanceList
-        title="Desempenho por assunto"
-        empty="Responda questões classificadas por assunto para gerar este diagnóstico."
-        items={data.topics.map((item) => ({
-          id: item.topicId,
-          name: `${item.subjectName} · ${item.topicName}`,
           attempts: item.attempts,
           correct: item.correct,
           accuracy: item.accuracy,
