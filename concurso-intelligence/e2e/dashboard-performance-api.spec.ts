@@ -128,12 +128,12 @@ test('returns and renders authenticated performance grouped by board, contest, s
     await expect(contestPanel).toContainText('50%');
     await expect(contestPanel).toContainText('1/2 acertos');
 
-    const subjectPanel = page.getByRole('region', { name: 'Desempenho por disciplina' });
+    const subjectPanel = page.getByRole('heading', { name: 'Desempenho por disciplina' }).locator('..');
     await expect(subjectPanel).toContainText(`Disciplina Performance ${suffix}`);
     await expect(subjectPanel).toContainText('50%');
     await expect(subjectPanel).toContainText('1/2 acertos');
 
-    const topicPanel = page.getByRole('region', { name: 'Desempenho por assunto' });
+    const topicPanel = page.getByRole('heading', { name: 'Desempenho por assunto' }).locator('..');
     await expect(topicPanel).toContainText(`Pai Performance ${suffix} › Assunto Performance ${suffix}`);
     await expect(topicPanel).toContainText(`Disciplina Performance ${suffix}`);
     await expect(topicPanel).toContainText('50%');
