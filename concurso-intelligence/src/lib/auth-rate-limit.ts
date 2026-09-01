@@ -33,28 +33,13 @@ function prune(now: number) {
   }
 }
 
-function keyFor(request: Request, identity: string, scope: string, secret: string) {
-  const ip = getClientIp(request.headers, process.env.TRUSTED_IP_HEADER) ?? 'unknown-ip';
+function hashKey(scope: string, dimension: 'identity' | 'ip', value: string, secret: string) {
   return createHmac('sha256', secret)
-    .update(`${scope}\n${ip}\n${identity.trim().toLowerCase()}`)
+    .update(`${scope}\n${dimension}\n${value}`)
     .digest('hex');
 }
 
-export function consumeAuthRateLimit(
-  request: Request,
-  identity: string,
-  policy: AuthRateLimitPolicy,
-  options?: { now?: number; secret?: string },
-): AuthRateLimitResult {
-  const now = options?.now ?? Date.now();
-  const secret = options?.secret ?? process.env.AUTH_RATE_LIMIT_SECRET ?? process.env.SESSION_SECRET;
-
-  if (!secret?.trim()) {
-    return { limited: false, remaining: policy.limit, retryAfterSeconds: 0 };
-  }
-
-  prune(now);
-  const key = keyFor(request, identity, policy.scope, secret.trim());
+function consumeBucket(key: string, policy: AuthRateLimitPolicy, now: number): AuthRateLimitResult {
   const current = buckets.get(key);
 
   if (!current || current.resetAt <= now) {
@@ -72,6 +57,40 @@ export function consumeAuthRateLimit(
 
   current.count += 1;
   return { limited: false, remaining: Math.max(policy.limit - current.count, 0), retryAfterSeconds: 0 };
+}
+
+function resolveSecret(explicitSecret?: string) {
+  if (explicitSecret !== undefined) return explicitSecret.trim() || undefined;
+  return process.env.AUTH_RATE_LIMIT_SECRET?.trim() || process.env.SESSION_SECRET?.trim() || undefined;
+}
+
+export function consumeAuthRateLimit(
+  request: Request,
+  identity: string,
+  policy: AuthRateLimitPolicy,
+  options?: { now?: number; secret?: string },
+): AuthRateLimitResult {
+  const now = options?.now ?? Date.now();
+  const secret = resolveSecret(options?.secret);
+
+  if (!secret) {
+    return { limited: false, remaining: policy.limit, retryAfterSeconds: 0 };
+  }
+
+  prune(now);
+
+  const normalizedIdentity = identity.trim().toLowerCase();
+  const identityResult = consumeBucket(hashKey(policy.scope, 'identity', normalizedIdentity, secret), policy, now);
+
+  const ip = getClientIp(request.headers, process.env.TRUSTED_IP_HEADER);
+  if (!ip) return identityResult;
+
+  const ipResult = consumeBucket(hashKey(policy.scope, 'ip', ip, secret), policy, now);
+  return {
+    limited: identityResult.limited || ipResult.limited,
+    remaining: Math.min(identityResult.remaining, ipResult.remaining),
+    retryAfterSeconds: Math.max(identityResult.retryAfterSeconds, ipResult.retryAfterSeconds),
+  };
 }
 
 export function resetAuthRateLimitForTests() {
