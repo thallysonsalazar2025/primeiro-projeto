@@ -82,12 +82,12 @@ test('shows persisted simulation performance on the dashboard', async ({ page })
     await expect(trendSection).toContainText('1 questão respondida');
     await expect(trendSection).toContainText('100%');
 
-    const subjectSection = page.getByRole('region', { name: 'Desempenho por disciplina' });
+    const subjectSection = page.getByRole('heading', { name: 'Desempenho por disciplina' }).locator('..');
     await expect(subjectSection).toContainText(subject.name);
     await expect(subjectSection).toContainText('1/1 acertos');
     await expect(subjectSection).toContainText('100%');
 
-    const topicSection = page.getByRole('region', { name: 'Desempenho por assunto' });
+    const topicSection = page.getByRole('heading', { name: 'Desempenho por assunto' }).locator('..');
     await expect(topicSection).toContainText(topic.name);
     await expect(topicSection).toContainText(subject.name);
     await expect(topicSection).toContainText('1/1 acertos');
