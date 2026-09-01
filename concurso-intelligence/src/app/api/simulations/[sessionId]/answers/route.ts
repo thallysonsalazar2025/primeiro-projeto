@@ -65,6 +65,9 @@ export async function POST(
   }
 
   const correct = question.status === "ANNULLED" ? true : Boolean(selectedChoice?.isCorrect);
+  // Capture the submission timestamp before waiting for the advisory lock. A request
+  // that started earlier must not overwrite a newer answer just because it acquires
+  // the lock later after scheduler/network delay.
   const answeredAt = new Date();
   const lockKey = `${sessionId}:${questionId}`;
 
@@ -76,7 +79,14 @@ export async function POST(
     const existing = await tx.questionAttempt.findMany({
       where: { sessionId, questionId, userId: user.id },
       orderBy: [{ answeredAt: "desc" }, { id: "desc" }],
-      select: { id: true },
+      select: {
+        id: true,
+        selected: true,
+        correct: true,
+        answeredAt: true,
+        elapsedMs: true,
+        confidence: true,
+      },
     });
 
     const data = { selected, correct, elapsedMs, confidence, answeredAt };
@@ -104,6 +114,12 @@ export async function POST(
       await tx.questionAttempt.deleteMany({
         where: { id: { in: duplicates.map(({ id }) => id) } },
       });
+    }
+
+    // The lock prevents duplicate rows; this timestamp guard additionally prevents
+    // an older delayed request from replacing a newer submission already persisted.
+    if (canonical.answeredAt > answeredAt) {
+      return canonical;
     }
 
     return tx.questionAttempt.update({
