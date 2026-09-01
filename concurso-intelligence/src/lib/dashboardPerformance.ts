@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { classifyStudySignal, type StudySignal } from '@/lib/studySignal';
 
 export type BoardPerformance = {
   boardId: string;
@@ -24,6 +25,7 @@ export type SubjectPerformance = {
   attempts: number;
   correct: number;
   accuracy: number;
+  signal: StudySignal;
 };
 
 export type TopicPerformance = {
@@ -34,6 +36,7 @@ export type TopicPerformance = {
   attempts: number;
   correct: number;
   accuracy: number;
+  signal: StudySignal;
 };
 
 type BoardPerformanceRow = Omit<BoardPerformance, 'attempts' | 'correct'> & {
@@ -46,12 +49,12 @@ type ContestPerformanceRow = Omit<ContestPerformance, 'attempts' | 'correct'> & 
   correct: bigint;
 };
 
-type SubjectPerformanceRow = Omit<SubjectPerformance, 'attempts' | 'correct'> & {
+type SubjectPerformanceRow = Omit<SubjectPerformance, 'attempts' | 'correct' | 'signal'> & {
   attempts: bigint;
   correct: bigint;
 };
 
-type TopicPerformanceRow = Omit<TopicPerformance, 'attempts' | 'correct'> & {
+type TopicPerformanceRow = Omit<TopicPerformance, 'attempts' | 'correct' | 'signal'> & {
   attempts: bigint;
   correct: bigint;
 };
@@ -160,21 +163,29 @@ export async function getDashboardPerformance(userId: string) {
       correct: Number(row.correct),
       accuracy: row.accuracy,
     })),
-    subjects: subjectRows.map((row) => ({
-      subjectId: row.subjectId,
-      subjectName: row.subjectName,
-      attempts: Number(row.attempts),
-      correct: Number(row.correct),
-      accuracy: row.accuracy,
-    })),
-    topics: topicRows.map((row) => ({
-      topicId: row.topicId,
-      topicName: row.topicName,
-      parentName: row.parentName,
-      subjectName: row.subjectName,
-      attempts: Number(row.attempts),
-      correct: Number(row.correct),
-      accuracy: row.accuracy,
-    })),
+    subjects: subjectRows.map((row) => {
+      const attempts = Number(row.attempts);
+      return {
+        subjectId: row.subjectId,
+        subjectName: row.subjectName,
+        attempts,
+        correct: Number(row.correct),
+        accuracy: row.accuracy,
+        signal: classifyStudySignal(attempts, row.accuracy),
+      };
+    }),
+    topics: topicRows.map((row) => {
+      const attempts = Number(row.attempts);
+      return {
+        topicId: row.topicId,
+        topicName: row.topicName,
+        parentName: row.parentName,
+        subjectName: row.subjectName,
+        attempts,
+        correct: Number(row.correct),
+        accuracy: row.accuracy,
+        signal: classifyStudySignal(attempts, row.accuracy),
+      };
+    }),
   };
 }

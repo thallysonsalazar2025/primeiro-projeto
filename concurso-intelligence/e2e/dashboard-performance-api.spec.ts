@@ -106,6 +106,7 @@ test('returns and renders authenticated performance grouped by board, contest, s
       attempts: 2,
       correct: 1,
       accuracy: 50,
+      signal: 'insufficient',
     });
     expect(payload.topics).toContainEqual({
       topicId: topic.id,
@@ -115,6 +116,7 @@ test('returns and renders authenticated performance grouped by board, contest, s
       attempts: 2,
       correct: 1,
       accuracy: 50,
+      signal: 'insufficient',
     });
 
     await page.reload();
