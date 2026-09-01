@@ -156,8 +156,8 @@ export function estimateForNewContest(
     const cargoWeight = normalizedTargetCargoFamily
       && normalizeComparableText(contest.cargoFamily) === normalizedTargetCargoFamily ? 1 : 0.7;
     const similarityWeight = clamp(contest.subjectSimilarity, 0.2, 1);
-    const difficultyWeight = clamp(contest.difficultySimilarity ?? 1, 0.2, 1);
-    const vacancyWeight = clamp(contest.vacancySimilarity ?? 1, 0.2, 1);
+    const difficultyWeight = clamp(contest.difficultySimilarity ?? 0.7, 0.2, 1);
+    const vacancyWeight = clamp(contest.vacancySimilarity ?? 0.7, 0.2, 1);
     const rawWeight = (contest.weight ?? 1)
       * boardWeight
       * cargoWeight
