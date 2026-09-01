@@ -1,13 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { getClientIp } from './client-ip.ts';
-
-type Bucket = {
-  count: number;
-  resetAt: number;
-};
-
-const buckets = new Map<string, Bucket>();
-const MAX_BUCKETS = 10_000;
+import { prisma } from './prisma.ts';
 
 export type AuthRateLimitPolicy = {
   scope: string;
@@ -21,16 +14,87 @@ export type AuthRateLimitResult = {
   retryAfterSeconds: number;
 };
 
-function prune(now: number) {
-  for (const [key, bucket] of buckets) {
-    if (bucket.resetAt <= now) buckets.delete(key);
+export type AuthRateLimitStore = {
+  consume: (key: string, policy: AuthRateLimitPolicy, now: number) => Promise<AuthRateLimitResult>;
+};
+
+type StoredBucket = {
+  count: number;
+  resetAt: Date;
+};
+
+let nextPruneAt = 0;
+const PRUNE_INTERVAL_MS = 60_000;
+const EXPIRED_BUCKET_RETENTION_MS = 24 * 60 * 60 * 1000;
+
+async function consumeDatabaseBucket(
+  key: string,
+  policy: AuthRateLimitPolicy,
+  now: number,
+): Promise<AuthRateLimitResult> {
+  const nowDate = new Date(now);
+  const newResetAt = new Date(now + policy.windowMs);
+  const rows = await prisma.$queryRaw<StoredBucket[]>`
+    INSERT INTO "AuthRateLimitBucket" ("key", "count", "resetAt", "updatedAt")
+    VALUES (${key}, 1, ${newResetAt}, ${nowDate})
+    ON CONFLICT ("key") DO UPDATE SET
+      "count" = CASE
+        WHEN "AuthRateLimitBucket"."resetAt" <= ${nowDate} THEN 1
+        ELSE "AuthRateLimitBucket"."count" + 1
+      END,
+      "resetAt" = CASE
+        WHEN "AuthRateLimitBucket"."resetAt" <= ${nowDate} THEN ${newResetAt}
+        ELSE "AuthRateLimitBucket"."resetAt"
+      END,
+      "updatedAt" = ${nowDate}
+    RETURNING "count", "resetAt"
+  `;
+
+  const bucket = rows[0];
+  if (!bucket) throw new Error('Auth rate limit bucket was not persisted.');
+
+  if (now >= nextPruneAt) {
+    nextPruneAt = now + PRUNE_INTERVAL_MS;
+    const pruneBefore = new Date(now - EXPIRED_BUCKET_RETENTION_MS);
+    void prisma.$executeRaw`
+      DELETE FROM "AuthRateLimitBucket"
+      WHERE "resetAt" < ${pruneBefore}
+    `.catch(() => undefined);
   }
 
-  while (buckets.size > MAX_BUCKETS) {
-    const oldest = buckets.keys().next().value as string | undefined;
-    if (!oldest) break;
-    buckets.delete(oldest);
-  }
+  return {
+    limited: bucket.count > policy.limit,
+    remaining: Math.max(policy.limit - bucket.count, 0),
+    retryAfterSeconds:
+      bucket.count > policy.limit ? Math.max(Math.ceil((bucket.resetAt.getTime() - now) / 1000), 1) : 0,
+  };
+}
+
+const databaseStore: AuthRateLimitStore = {
+  consume: consumeDatabaseBucket,
+};
+
+export function createInMemoryAuthRateLimitStore(): AuthRateLimitStore {
+  const buckets = new Map<string, { count: number; resetAt: number }>();
+
+  return {
+    async consume(key, policy, now) {
+      const current = buckets.get(key);
+
+      if (!current || current.resetAt <= now) {
+        buckets.set(key, { count: 1, resetAt: now + policy.windowMs });
+        return { limited: false, remaining: Math.max(policy.limit - 1, 0), retryAfterSeconds: 0 };
+      }
+
+      current.count += 1;
+      return {
+        limited: current.count > policy.limit,
+        remaining: Math.max(policy.limit - current.count, 0),
+        retryAfterSeconds:
+          current.count > policy.limit ? Math.max(Math.ceil((current.resetAt - now) / 1000), 1) : 0,
+      };
+    },
+  };
 }
 
 function hashKey(scope: string, dimension: 'identity' | 'ip', value: string, secret: string) {
@@ -39,37 +103,17 @@ function hashKey(scope: string, dimension: 'identity' | 'ip', value: string, sec
     .digest('hex');
 }
 
-function consumeBucket(key: string, policy: AuthRateLimitPolicy, now: number): AuthRateLimitResult {
-  const current = buckets.get(key);
-
-  if (!current || current.resetAt <= now) {
-    buckets.set(key, { count: 1, resetAt: now + policy.windowMs });
-    return { limited: false, remaining: Math.max(policy.limit - 1, 0), retryAfterSeconds: 0 };
-  }
-
-  if (current.count >= policy.limit) {
-    return {
-      limited: true,
-      remaining: 0,
-      retryAfterSeconds: Math.max(Math.ceil((current.resetAt - now) / 1000), 1),
-    };
-  }
-
-  current.count += 1;
-  return { limited: false, remaining: Math.max(policy.limit - current.count, 0), retryAfterSeconds: 0 };
-}
-
 function resolveSecret(explicitSecret?: string) {
   if (explicitSecret !== undefined) return explicitSecret.trim() || undefined;
   return process.env.AUTH_RATE_LIMIT_SECRET?.trim() || process.env.SESSION_SECRET?.trim() || undefined;
 }
 
-export function consumeAuthRateLimit(
+export async function consumeAuthRateLimit(
   request: Request,
   identity: string,
   policy: AuthRateLimitPolicy,
-  options?: { now?: number; secret?: string },
-): AuthRateLimitResult {
+  options?: { now?: number; secret?: string; store?: AuthRateLimitStore },
+): Promise<AuthRateLimitResult> {
   const now = options?.now ?? Date.now();
   const secret = resolveSecret(options?.secret);
 
@@ -77,22 +121,17 @@ export function consumeAuthRateLimit(
     return { limited: false, remaining: policy.limit, retryAfterSeconds: 0 };
   }
 
-  prune(now);
-
+  const store = options?.store ?? databaseStore;
   const normalizedIdentity = identity.trim().toLowerCase();
-  const identityResult = consumeBucket(hashKey(policy.scope, 'identity', normalizedIdentity, secret), policy, now);
+  const identityResult = await store.consume(hashKey(policy.scope, 'identity', normalizedIdentity, secret), policy, now);
 
   const ip = getClientIp(request.headers, process.env.TRUSTED_IP_HEADER);
   if (!ip) return identityResult;
 
-  const ipResult = consumeBucket(hashKey(policy.scope, 'ip', ip, secret), policy, now);
+  const ipResult = await store.consume(hashKey(policy.scope, 'ip', ip, secret), policy, now);
   return {
     limited: identityResult.limited || ipResult.limited,
     remaining: Math.min(identityResult.remaining, ipResult.remaining),
     retryAfterSeconds: Math.max(identityResult.retryAfterSeconds, ipResult.retryAfterSeconds),
   };
-}
-
-export function resetAuthRateLimitForTests() {
-  buckets.clear();
 }
