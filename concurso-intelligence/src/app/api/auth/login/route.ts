@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Credenciais inválidas.' }, { status: 400 });
   }
 
-  const rateLimit = consumeAuthRateLimit(request, parsed.data.email, LOGIN_RATE_LIMIT);
+  const rateLimit = await consumeAuthRateLimit(request, parsed.data.email, LOGIN_RATE_LIMIT);
   if (rateLimit.limited) {
     return NextResponse.json(
       { error: 'Muitas tentativas. Tente novamente em alguns minutos.' },
