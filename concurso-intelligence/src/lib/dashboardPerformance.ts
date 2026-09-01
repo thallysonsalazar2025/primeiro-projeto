@@ -29,6 +29,7 @@ export type SubjectPerformance = {
 export type TopicPerformance = {
   topicId: string;
   topicName: string;
+  parentName: string | null;
   subjectName: string;
   attempts: number;
   correct: number;
@@ -121,6 +122,7 @@ export async function getDashboardPerformance(userId: string) {
       SELECT
         t."id" AS "topicId",
         t."name" AS "topicName",
+        p."name" AS "parentName",
         s."name" AS "subjectName",
         COUNT(*)::bigint AS "attempts",
         SUM(CASE WHEN qa."correct" THEN 1 ELSE 0 END)::bigint AS "correct",
@@ -131,11 +133,12 @@ export async function getDashboardPerformance(userId: string) {
       FROM "QuestionAttempt" qa
       INNER JOIN "Question" q ON q."id" = qa."questionId"
       INNER JOIN "Topic" t ON t."id" = q."topicId"
+      LEFT JOIN "Topic" p ON p."id" = t."parentId"
       INNER JOIN "Subject" s ON s."id" = t."subjectId"
       WHERE qa."userId" = ${userId}
         AND qa."selected" IS NOT NULL
-      GROUP BY t."id", t."name", s."name"
-      ORDER BY "attempts" DESC, "accuracy" ASC, s."name" ASC, t."name" ASC
+      GROUP BY t."id", t."name", p."name", s."name"
+      ORDER BY "attempts" DESC, "accuracy" ASC, s."name" ASC, p."name" ASC NULLS FIRST, t."name" ASC
       LIMIT 10
     `,
   ]);
@@ -167,6 +170,7 @@ export async function getDashboardPerformance(userId: string) {
     topics: topicRows.map((row) => ({
       topicId: row.topicId,
       topicName: row.topicName,
+      parentName: row.parentName,
       subjectName: row.subjectName,
       attempts: Number(row.attempts),
       correct: Number(row.correct),
