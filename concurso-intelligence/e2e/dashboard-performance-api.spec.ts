@@ -37,8 +37,11 @@ test('returns and renders authenticated performance grouped by board, contest, s
   const subject = await prisma.subject.create({
     data: { name: `Disciplina Performance ${suffix}` },
   });
+  const parentTopic = await prisma.topic.create({
+    data: { subjectId: subject.id, name: `Pai Performance ${suffix}` },
+  });
   const topic = await prisma.topic.create({
-    data: { subjectId: subject.id, name: `Assunto Performance ${suffix}` },
+    data: { subjectId: subject.id, parentId: parentTopic.id, name: `Assunto Performance ${suffix}` },
   });
   const question = await prisma.question.create({
     data: {
@@ -107,6 +110,7 @@ test('returns and renders authenticated performance grouped by board, contest, s
     expect(payload.topics).toContainEqual({
       topicId: topic.id,
       topicName: topic.name,
+      parentName: parentTopic.name,
       subjectName: subject.name,
       attempts: 2,
       correct: 1,
@@ -130,7 +134,8 @@ test('returns and renders authenticated performance grouped by board, contest, s
     await expect(subjectPanel).toContainText('1/2 acertos');
 
     const topicPanel = page.getByRole('region', { name: 'Desempenho por assunto' });
-    await expect(topicPanel).toContainText(`Disciplina Performance ${suffix} · Assunto Performance ${suffix}`);
+    await expect(topicPanel).toContainText(`Pai Performance ${suffix} › Assunto Performance ${suffix}`);
+    await expect(topicPanel).toContainText(`Disciplina Performance ${suffix}`);
     await expect(topicPanel).toContainText('50%');
     await expect(topicPanel).toContainText('1/2 acertos');
   } finally {
@@ -138,6 +143,7 @@ test('returns and renders authenticated performance grouped by board, contest, s
     if (user) await prisma.user.delete({ where: { id: user.id } });
     await prisma.question.delete({ where: { id: question.id } });
     await prisma.topic.delete({ where: { id: topic.id } });
+    await prisma.topic.delete({ where: { id: parentTopic.id } });
     await prisma.subject.delete({ where: { id: subject.id } });
     await prisma.exam.delete({ where: { id: exam.id } });
     await prisma.contest.delete({ where: { id: contest.id } });
