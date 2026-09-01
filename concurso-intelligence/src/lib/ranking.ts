@@ -97,7 +97,9 @@ export function estimateForNewContest(
   if (!Number.isInteger(expectedCandidates) || expectedCandidates <= 0) {
     throw new Error('Expected candidates must be a positive integer');
   }
-  if (!targetBoard.trim()) {
+
+  const normalizedTargetBoard = targetBoard.trim().toLowerCase();
+  if (!normalizedTargetBoard) {
     throw new Error('Target board is required');
   }
 
@@ -106,30 +108,47 @@ export function estimateForNewContest(
 
   for (const contest of usable) {
     if (!contest.board.trim()) throw new Error('Historical contest board is required');
-    if (!Number.isFinite(contest.subjectSimilarity)) {
-      throw new Error('Historical subject similarity must be finite');
+    if (
+      !Number.isFinite(contest.subjectSimilarity)
+      || contest.subjectSimilarity < 0
+      || contest.subjectSimilarity > 1
+    ) {
+      throw new Error('Historical subject similarity must be between 0 and 1');
     }
     if (contest.weight !== undefined && (!Number.isFinite(contest.weight) || contest.weight <= 0)) {
       throw new Error('Historical contest weight must be positive and finite');
     }
-    if (contest.rows.some((row) => !Number.isFinite(row.score))) {
-      throw new Error('Historical ranking contains an invalid score');
+    if (contest.rows.some((row) => !Number.isFinite(row.score) || row.score < 0 || row.score > 100)) {
+      throw new Error('Historical ranking score must be between 0 and 100');
     }
+  }
+
+  const weightedContests = usable.map((contest) => {
+    const boardWeight = contest.board.trim().toLowerCase() === normalizedTargetBoard ? 1 : 0.45;
+    const cargoWeight = targetCargoFamily && contest.cargoFamily === targetCargoFamily ? 1 : 0.7;
+    const similarityWeight = clamp(contest.subjectSimilarity, 0.2, 1);
+    const rawWeight = (contest.weight ?? 1) * boardWeight * cargoWeight * similarityWeight;
+
+    return {
+      contest,
+      percentile: percentileAgainstScores(simulatedScorePercent, contest.rows),
+      rawWeight,
+    };
+  });
+
+  const maxRawWeight = Math.max(...weightedContests.map(({ rawWeight }) => rawWeight));
+  if (!Number.isFinite(maxRawWeight) || maxRawWeight <= 0) {
+    throw new Error('Historical contest weights cannot produce a finite estimate');
   }
 
   let weightedPercentile = 0;
   let totalWeight = 0;
   let sampleSize = 0;
 
-  for (const contest of usable) {
-    const boardWeight = contest.board.toLowerCase() === targetBoard.toLowerCase() ? 1 : 0.45;
-    const cargoWeight = targetCargoFamily && contest.cargoFamily === targetCargoFamily ? 1 : 0.7;
-    const similarityWeight = clamp(contest.subjectSimilarity, 0.2, 1);
-    const weight = (contest.weight ?? 1) * boardWeight * cargoWeight * similarityWeight;
-    const percentile = percentileAgainstScores(simulatedScorePercent, contest.rows);
-
-    weightedPercentile += percentile * weight;
-    totalWeight += weight;
+  for (const { contest, percentile, rawWeight } of weightedContests) {
+    const normalizedWeight = rawWeight / maxRawWeight;
+    weightedPercentile += percentile * normalizedWeight;
+    totalWeight += normalizedWeight;
     sampleSize += contest.rows.length;
   }
 
