@@ -15,7 +15,7 @@ export function PerformanceByContext() {
     let active = true;
     fetch('/api/dashboard/performance')
       .then(async (response) => {
-        if (!response.ok) throw new Error('Não foi possível carregar o desempenho por banca e concurso.');
+        if (!response.ok) throw new Error('Não foi possível carregar o desempenho por contexto.');
         return response.json() as Promise<Performance>;
       })
       .then((payload) => {
@@ -30,7 +30,7 @@ export function PerformanceByContext() {
   }, []);
 
   if (error) return <p role="alert" style={{ color: '#b91c1c' }}>{error}</p>;
-  if (!data) return <p style={{ color: '#64748b' }}>Carregando desempenho por banca e concurso...</p>;
+  if (!data) return <p style={{ color: '#64748b' }}>Carregando desempenho por contexto...</p>;
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 14 }}>
