@@ -32,6 +32,15 @@ model LoginHistory {
   @@index([userId, loggedAt])
 }
 
+model AuthRateLimitBucket {
+  key       String   @id
+  count     Int
+  resetAt   DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
+}
+
 model ExamBoard {
   id        String    @id @default(cuid())
   name      String
