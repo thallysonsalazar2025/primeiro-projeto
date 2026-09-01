@@ -29,6 +29,7 @@ type RankingResponse = {
     confidence: string;
     sampleSize: number;
   };
+  assumptions: string[];
   provenance: {
     sources: Array<{ url: string; page: number | null }>;
     lastImportedAt: string | null;
@@ -162,6 +163,12 @@ export function RankingEstimator({ contests }: Props) {
           <p style={{ margin: 0 }}>Faixa estimada: <strong>{result.estimate.lowerRank}º a {result.estimate.upperRank}º</strong></p>
           <p style={{ margin: '8px 0 0' }}>Percentil: <strong>{Math.round(result.estimate.percentile * 1000) / 10}%</strong> · Amostra: <strong>{result.estimate.sampleSize}</strong> candidatos · Confiança: <strong>{formatConfidence(result.estimate.confidence)}</strong></p>
           <p style={{ margin: '14px 0 0', color: '#475569', fontSize: 14 }}>{result.disclaimer}</p>
+          <details style={{ marginTop: 14 }}>
+            <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Premissas da estimativa</summary>
+            <ul>
+              {result.assumptions.map((assumption) => <li key={assumption}>{assumption}</li>)}
+            </ul>
+          </details>
           <details style={{ marginTop: 14 }}>
             <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Fontes utilizadas</summary>
             <ul>
