@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
   const sources = sourceRows.map(({ sourceUrl, sourcePage }) => ({ url: sourceUrl, page: sourcePage }));
   const assumptions = [
     'A pontuação informada é comparada somente com candidatos importados do mesmo concurso, cargo/modalidade e categoria.',
-    'Empates são estimados no ponto médio do bloco de candidatos com a mesma pontuação.',
+    'Empates são estimados pelo ponto médio do bloco de candidatos com a mesma pontuação, arredondado para cima quando necessário.',
     `O nível de confiança considera o tamanho da amostra oficial importada (${total} candidatos).`,
   ];
 
