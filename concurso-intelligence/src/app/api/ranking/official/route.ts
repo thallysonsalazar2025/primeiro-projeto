@@ -1,4 +1,4 @@
-import { RankingCategory } from '@prisma/client';
+import { Prisma, RankingCategory } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -36,18 +36,21 @@ export async function GET(request: NextRequest) {
   const { contestId, positionId, category, score } = parsed.data;
   const where = { contestId, positionId, category };
 
-  const [total, higher, equal, sourceRows, importAggregate] = await Promise.all([
-    prisma.officialRankingRow.count({ where }),
-    prisma.officialRankingRow.count({ where: { ...where, score: { gt: score } } }),
-    prisma.officialRankingRow.count({ where: { ...where, score } }),
-    prisma.officialRankingRow.findMany({
-      where,
-      select: { sourceUrl: true, sourcePage: true },
-      distinct: ['sourceUrl', 'sourcePage'],
-      orderBy: [{ sourceUrl: 'asc' }, { sourcePage: 'asc' }],
-    }),
-    prisma.officialRankingRow.aggregate({ where, _max: { importedAt: true } }),
-  ]);
+  const [total, higher, equal, sourceRows, importAggregate] = await prisma.$transaction(
+    async (tx) => Promise.all([
+      tx.officialRankingRow.count({ where }),
+      tx.officialRankingRow.count({ where: { ...where, score: { gt: score } } }),
+      tx.officialRankingRow.count({ where: { ...where, score } }),
+      tx.officialRankingRow.findMany({
+        where,
+        select: { sourceUrl: true, sourcePage: true },
+        distinct: ['sourceUrl', 'sourcePage'],
+        orderBy: [{ sourceUrl: 'asc' }, { sourcePage: 'asc' }],
+      }),
+      tx.officialRankingRow.aggregate({ where, _max: { importedAt: true } }),
+    ]),
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+  );
 
   if (!total) {
     return NextResponse.json({ error: 'Official ranking distribution not found' }, { status: 404 });
