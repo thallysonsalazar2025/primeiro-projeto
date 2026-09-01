@@ -1,14 +1,9 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { prisma } from './prisma';
+import { sessionSecretBytes } from './session-secret';
 
 const COOKIE = 'concurso_session';
-
-function secret() {
-  const value = process.env.SESSION_SECRET;
-  if (!value) throw new Error('SESSION_SECRET is required');
-  return new TextEncoder().encode(value);
-}
 
 export async function createSession(userId: string) {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { sessionVersion: true } });
@@ -18,7 +13,7 @@ export async function createSession(userId: string) {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('30d')
-    .sign(secret());
+    .sign(sessionSecretBytes());
 
   const store = await cookies();
   store.set(COOKIE, token, {
@@ -47,7 +42,7 @@ export async function getCurrentUser() {
   if (!token) return null;
 
   try {
-    const { payload } = await jwtVerify(token, secret());
+    const { payload } = await jwtVerify(token, sessionSecretBytes());
     const userId = String(payload.userId ?? '');
     if (!userId) return null;
 
