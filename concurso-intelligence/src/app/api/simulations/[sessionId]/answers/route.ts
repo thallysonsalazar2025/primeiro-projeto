@@ -65,30 +65,46 @@ export async function POST(
   }
 
   const correct = question.status === "ANNULLED" ? true : Boolean(selectedChoice?.isCorrect);
+  const answeredAt = new Date();
+  const attemptData = {
+    userId: user.id,
+    sessionId,
+    questionId,
+    selected,
+    correct,
+    elapsedMs,
+    confidence,
+    answeredAt,
+  };
+
+  // The database owns the concurrency guarantee through a partial unique index on
+  // (sessionId, questionId). createMany + skipDuplicates turns simultaneous first
+  // answers into a single row, then every request updates that canonical row.
+  await prisma.questionAttempt.createMany({
+    data: [attemptData],
+    skipDuplicates: true,
+  });
 
   const existing = await prisma.questionAttempt.findFirst({
     where: { sessionId, questionId, userId: user.id },
     select: { id: true },
   });
+  if (!existing) {
+    return NextResponse.json({ error: "Unable to persist answer" }, { status: 500 });
+  }
 
-  const attempt = existing
-    ? await prisma.questionAttempt.update({
-        where: { id: existing.id },
-        data: { selected, correct, elapsedMs, confidence, answeredAt: new Date() },
-        select: { id: true, selected: true, correct: true, answeredAt: true, elapsedMs: true, confidence: true },
-      })
-    : await prisma.questionAttempt.create({
-        data: {
-          userId: user.id,
-          sessionId,
-          questionId,
-          selected,
-          correct,
-          elapsedMs,
-          confidence,
-        },
-        select: { id: true, selected: true, correct: true, answeredAt: true, elapsedMs: true, confidence: true },
-      });
+  const attempt = await prisma.questionAttempt.update({
+    where: { id: existing.id },
+    data: { selected, correct, elapsedMs, confidence, answeredAt },
+    select: {
+      id: true,
+      selected: true,
+      correct: true,
+      answeredAt: true,
+      elapsedMs: true,
+      confidence: true,
+    },
+  });
 
   return NextResponse.json({ attempt });
 }
