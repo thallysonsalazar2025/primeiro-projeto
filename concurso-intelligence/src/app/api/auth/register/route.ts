@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { createSession } from '@/lib/auth';
+import { consumeAuthRateLimit } from '@/lib/auth-rate-limit';
 
 const schema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
@@ -10,10 +11,20 @@ const schema = z.object({
   password: z.string().min(8).max(128),
 });
 
+const REGISTER_RATE_LIMIT = { scope: 'register', limit: 5, windowMs: 60 * 60 * 1000 };
+
 export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json());
   if (!parsed.success) {
     return NextResponse.json({ error: 'Dados inválidos.' }, { status: 400 });
+  }
+
+  const rateLimit = await consumeAuthRateLimit(request, parsed.data.email, REGISTER_RATE_LIMIT);
+  if (rateLimit.limited) {
+    return NextResponse.json(
+      { error: 'Muitas tentativas de cadastro. Tente novamente mais tarde.' },
+      { status: 429, headers: { 'retry-after': String(rateLimit.retryAfterSeconds) } },
+    );
   }
 
   const existing = await prisma.user.findUnique({ where: { email: parsed.data.email } });

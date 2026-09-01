@@ -83,3 +83,20 @@ test('authenticated user sees recent access history without exposing IP data', a
   await expect(page.getByText('Acesso mais recente')).toBeVisible();
   await expect(page.getByText(/endereço IP não é exibido/i)).toBeVisible();
 });
+
+test('login API rate limits repeated invalid attempts and returns Retry-After', async ({ request }) => {
+  const email = `a10-rate-limit-${Date.now()}@example.com`;
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const response = await request.post('/api/auth/login', {
+      data: { email, password: 'WrongPassword123!' },
+    });
+    expect(response.status()).toBe(401);
+  }
+
+  const blocked = await request.post('/api/auth/login', {
+    data: { email, password: 'WrongPassword123!' },
+  });
+  expect(blocked.status()).toBe(429);
+  expect(Number(blocked.headers()['retry-after'])).toBeGreaterThan(0);
+});
