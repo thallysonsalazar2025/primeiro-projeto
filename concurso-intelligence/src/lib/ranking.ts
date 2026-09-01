@@ -45,11 +45,23 @@ function assertFiniteScore(score: number, label: string) {
   }
 }
 
+function assertOfficialRankingCount(value: number, label: string) {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`${label} must be a non-negative safe integer`);
+  }
+}
+
 export function estimateFromOfficialRankingAggregate(
   aggregate: OfficialRankingAggregate,
 ): RankingEstimate {
   const { total, higher, equal } = aggregate;
+  assertOfficialRankingCount(total, 'Official ranking total');
+  assertOfficialRankingCount(higher, 'Official ranking higher count');
+  assertOfficialRankingCount(equal, 'Official ranking equal count');
   if (total <= 0) throw new Error('Official ranking sample is empty');
+  if (higher > total || equal > total - higher) {
+    throw new Error('Official ranking aggregate is inconsistent');
+  }
 
   const estimatedRank = higher + Math.max(1, Math.ceil(equal / 2));
   const percentile = (total - higher) / total;
