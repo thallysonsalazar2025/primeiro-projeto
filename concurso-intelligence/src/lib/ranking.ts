@@ -51,6 +51,10 @@ function assertOfficialRankingCount(value: number, label: string) {
   }
 }
 
+function normalizeComparableText(value: string | undefined) {
+  return value?.trim().toLowerCase() || undefined;
+}
+
 export function estimateFromOfficialRankingAggregate(
   aggregate: OfficialRankingAggregate,
 ): RankingEstimate {
@@ -110,16 +114,17 @@ export function estimateForNewContest(
     throw new Error('Expected candidates must be a positive integer');
   }
 
-  const normalizedTargetBoard = targetBoard.trim().toLowerCase();
+  const normalizedTargetBoard = normalizeComparableText(targetBoard);
   if (!normalizedTargetBoard) {
     throw new Error('Target board is required');
   }
+  const normalizedTargetCargoFamily = normalizeComparableText(targetCargoFamily);
 
   const usable = history.filter((h) => h.rows.length >= 20);
   if (!usable.length) throw new Error('Insufficient historical data');
 
   for (const contest of usable) {
-    if (!contest.board.trim()) throw new Error('Historical contest board is required');
+    if (!normalizeComparableText(contest.board)) throw new Error('Historical contest board is required');
     if (
       !Number.isFinite(contest.subjectSimilarity)
       || contest.subjectSimilarity < 0
@@ -136,8 +141,9 @@ export function estimateForNewContest(
   }
 
   const weightedContests = usable.map((contest) => {
-    const boardWeight = contest.board.trim().toLowerCase() === normalizedTargetBoard ? 1 : 0.45;
-    const cargoWeight = targetCargoFamily && contest.cargoFamily === targetCargoFamily ? 1 : 0.7;
+    const boardWeight = normalizeComparableText(contest.board) === normalizedTargetBoard ? 1 : 0.45;
+    const cargoWeight = normalizedTargetCargoFamily
+      && normalizeComparableText(contest.cargoFamily) === normalizedTargetCargoFamily ? 1 : 0.7;
     const similarityWeight = clamp(contest.subjectSimilarity, 0.2, 1);
     const rawWeight = (contest.weight ?? 1) * boardWeight * cargoWeight * similarityWeight;
 

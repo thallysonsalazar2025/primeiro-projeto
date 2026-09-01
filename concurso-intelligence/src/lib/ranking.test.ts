@@ -131,6 +131,29 @@ test('normalizes board names before applying historical weights', () => {
   assert.deepEqual(padded, normalized);
 });
 
+test('normalizes cargo-family names before applying historical weights', () => {
+  const history: HistoricalContest[] = [
+    {
+      contestId: 'fgv-ti',
+      board: 'FGV',
+      cargoFamily: '  ti  ',
+      subjectSimilarity: 1,
+      rows: Array.from({ length: 20 }, (_, index) => ({ score: index + 70 })),
+    },
+    {
+      contestId: 'fgv-admin',
+      board: 'FGV',
+      cargoFamily: 'ADMIN',
+      subjectSimilarity: 1,
+      rows: Array.from({ length: 20 }, (_, index) => ({ score: index + 50 })),
+    },
+  ];
+
+  const normalized = estimateForNewContest(80, 500, 'FGV', 'TI', history);
+  const padded = estimateForNewContest(80, 500, 'FGV', '  ti  ', history);
+  assert.deepEqual(padded, normalized);
+});
+
 test('rejects future estimates without a minimally useful historical sample', () => {
   assert.throws(
     () => estimateForNewContest(75, 500, 'FGV', 'TI', [
