@@ -13,6 +13,8 @@ function request(ip = '203.0.113.10') {
 test.beforeEach(() => {
   resetAuthRateLimitForTests();
   process.env.TRUSTED_IP_HEADER = 'x-forwarded-for';
+  delete process.env.AUTH_RATE_LIMIT_SECRET;
+  delete process.env.SESSION_SECRET;
 });
 
 test('limits repeated attempts for the same identity and client', () => {
@@ -25,13 +27,26 @@ test('limits repeated attempts for the same identity and client', () => {
   assert.equal(blocked.retryAfterSeconds, 57);
 });
 
-test('separates buckets by identity and trusted client IP', () => {
-  for (let i = 0; i < 3; i += 1) {
-    consumeAuthRateLimit(request(), 'user@example.com', policy, { now: 1_000 + i, secret: 'secret' });
-  }
+test('blocks one identity even when the trusted client IP rotates', () => {
+  consumeAuthRateLimit(request('203.0.113.1'), 'user@example.com', policy, { now: 1_000, secret: 'secret' });
+  consumeAuthRateLimit(request('203.0.113.2'), 'user@example.com', policy, { now: 2_000, secret: 'secret' });
+  consumeAuthRateLimit(request('203.0.113.3'), 'user@example.com', policy, { now: 3_000, secret: 'secret' });
 
-  assert.equal(consumeAuthRateLimit(request('198.51.100.8'), 'user@example.com', policy, { now: 5_000, secret: 'secret' }).limited, false);
-  assert.equal(consumeAuthRateLimit(request(), 'other@example.com', policy, { now: 5_000, secret: 'secret' }).limited, false);
+  assert.equal(
+    consumeAuthRateLimit(request('203.0.113.4'), 'user@example.com', policy, { now: 4_000, secret: 'secret' }).limited,
+    true,
+  );
+});
+
+test('blocks one trusted client IP even when identities rotate', () => {
+  consumeAuthRateLimit(request(), 'one@example.com', policy, { now: 1_000, secret: 'secret' });
+  consumeAuthRateLimit(request(), 'two@example.com', policy, { now: 2_000, secret: 'secret' });
+  consumeAuthRateLimit(request(), 'three@example.com', policy, { now: 3_000, secret: 'secret' });
+
+  assert.equal(
+    consumeAuthRateLimit(request(), 'four@example.com', policy, { now: 4_000, secret: 'secret' }).limited,
+    true,
+  );
 });
 
 test('opens a fresh window after expiration', () => {
@@ -40,6 +55,17 @@ test('opens a fresh window after expiration', () => {
   }
 
   assert.equal(consumeAuthRateLimit(request(), 'user@example.com', policy, { now: 61_001, secret: 'secret' }).limited, false);
+});
+
+test('falls back to SESSION_SECRET when dedicated secret is blank', () => {
+  process.env.AUTH_RATE_LIMIT_SECRET = '   ';
+  process.env.SESSION_SECRET = 'session-secret';
+
+  consumeAuthRateLimit(request(), 'user@example.com', policy, { now: 1_000 });
+  consumeAuthRateLimit(request(), 'user@example.com', policy, { now: 2_000 });
+  consumeAuthRateLimit(request(), 'user@example.com', policy, { now: 3_000 });
+
+  assert.equal(consumeAuthRateLimit(request(), 'user@example.com', policy, { now: 4_000 }).limited, true);
 });
 
 test('fails open when no secret is configured', () => {
