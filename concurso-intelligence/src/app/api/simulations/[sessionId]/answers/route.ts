@@ -15,6 +15,7 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ sessionId: string }> },
 ) {
+  const requestReceivedAt = new Date();
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -65,30 +66,75 @@ export async function POST(
   }
 
   const correct = question.status === "ANNULLED" ? true : Boolean(selectedChoice?.isCorrect);
+  // Preserve the order in which requests reached this handler, independently of
+  // authentication/database latency or the time each request waits on the lock.
+  const answeredAt = requestReceivedAt;
+  const lockKey = `${sessionId}:${questionId}`;
 
-  const existing = await prisma.questionAttempt.findFirst({
-    where: { sessionId, questionId, userId: user.id },
-    select: { id: true },
-  });
+  const attempt = await prisma.$transaction(async (tx) => {
+    // Serialize writes for this exact session/question pair without introducing a
+    // nullable compound unique constraint that Prisma cannot represent safely.
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))::text`;
 
-  const attempt = existing
-    ? await prisma.questionAttempt.update({
-        where: { id: existing.id },
-        data: { selected, correct, elapsedMs, confidence, answeredAt: new Date() },
-        select: { id: true, selected: true, correct: true, answeredAt: true, elapsedMs: true, confidence: true },
-      })
-    : await prisma.questionAttempt.create({
+    const existing = await tx.questionAttempt.findMany({
+      where: { sessionId, questionId, userId: user.id },
+      orderBy: [{ answeredAt: "desc" }, { id: "desc" }],
+      select: {
+        id: true,
+        selected: true,
+        correct: true,
+        answeredAt: true,
+        elapsedMs: true,
+        confidence: true,
+      },
+    });
+
+    const data = { selected, correct, elapsedMs, confidence, answeredAt };
+    if (existing.length === 0) {
+      return tx.questionAttempt.create({
         data: {
           userId: user.id,
           sessionId,
           questionId,
-          selected,
-          correct,
-          elapsedMs,
-          confidence,
+          ...data,
         },
-        select: { id: true, selected: true, correct: true, answeredAt: true, elapsedMs: true, confidence: true },
+        select: {
+          id: true,
+          selected: true,
+          correct: true,
+          answeredAt: true,
+          elapsedMs: true,
+          confidence: true,
+        },
       });
+    }
+
+    const [canonical, ...duplicates] = existing;
+    if (duplicates.length > 0) {
+      await tx.questionAttempt.deleteMany({
+        where: { id: { in: duplicates.map(({ id }) => id) } },
+      });
+    }
+
+    // The lock prevents duplicate rows; this timestamp guard additionally prevents
+    // an older delayed request from replacing a newer submission already persisted.
+    if (canonical.answeredAt > answeredAt) {
+      return canonical;
+    }
+
+    return tx.questionAttempt.update({
+      where: { id: canonical.id },
+      data,
+      select: {
+        id: true,
+        selected: true,
+        correct: true,
+        answeredAt: true,
+        elapsedMs: true,
+        confidence: true,
+      },
+    });
+  });
 
   return NextResponse.json({ attempt });
 }
