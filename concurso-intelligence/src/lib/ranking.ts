@@ -189,7 +189,11 @@ export function estimateForNewContest(
   }
 
   const percentile = totalWeight ? weightedPercentile / totalWeight : 0;
-  const estimatedRank = Math.max(1, Math.round((1 - percentile) * expectedCandidates) + 1);
+  const estimatedRank = clamp(
+    Math.round((1 - percentile) * expectedCandidates) + 1,
+    1,
+    expectedCandidates,
+  );
 
   const effectiveHistory = usable.length;
   const uncertaintyRate = effectiveHistory >= 5 ? 0.08 : effectiveHistory >= 3 ? 0.14 : 0.22;
