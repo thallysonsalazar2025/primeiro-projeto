@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { createSession } from '@/lib/auth';
 import { getClientIp, hashClientIp, selectIpHashSecret } from '@/lib/client-ip';
+import { consumeAuthRateLimit } from '@/lib/auth-rate-limit';
 
 const schema = z.object({
   email: z.string().email().transform((v) => v.toLowerCase()),
@@ -12,11 +13,20 @@ const schema = z.object({
 
 const IP_HASH_RETENTION_DAYS = 90;
 const IP_HASH_RETENTION_MS = IP_HASH_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+const LOGIN_RATE_LIMIT = { scope: 'login', limit: 10, windowMs: 10 * 60 * 1000 };
 
 export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json());
   if (!parsed.success) {
     return NextResponse.json({ error: 'Credenciais inválidas.' }, { status: 400 });
+  }
+
+  const rateLimit = consumeAuthRateLimit(request, parsed.data.email, LOGIN_RATE_LIMIT);
+  if (rateLimit.limited) {
+    return NextResponse.json(
+      { error: 'Muitas tentativas. Tente novamente em alguns minutos.' },
+      { status: 429, headers: { 'retry-after': String(rateLimit.retryAfterSeconds) } },
+    );
   }
 
   const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
