@@ -66,44 +66,58 @@ export async function POST(
 
   const correct = question.status === "ANNULLED" ? true : Boolean(selectedChoice?.isCorrect);
   const answeredAt = new Date();
-  const attemptData = {
-    userId: user.id,
-    sessionId,
-    questionId,
-    selected,
-    correct,
-    elapsedMs,
-    confidence,
-    answeredAt,
-  };
+  const lockKey = `${sessionId}:${questionId}`;
 
-  // The database owns the concurrency guarantee through a partial unique index on
-  // (sessionId, questionId). createMany + skipDuplicates turns simultaneous first
-  // answers into a single row, then every request updates that canonical row.
-  await prisma.questionAttempt.createMany({
-    data: [attemptData],
-    skipDuplicates: true,
-  });
+  const attempt = await prisma.$transaction(async (tx) => {
+    // Serialize writes for this exact session/question pair without introducing a
+    // nullable compound unique constraint that Prisma cannot represent safely.
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))::text`;
 
-  const existing = await prisma.questionAttempt.findFirst({
-    where: { sessionId, questionId, userId: user.id },
-    select: { id: true },
-  });
-  if (!existing) {
-    return NextResponse.json({ error: "Unable to persist answer" }, { status: 500 });
-  }
+    const existing = await tx.questionAttempt.findMany({
+      where: { sessionId, questionId, userId: user.id },
+      orderBy: [{ answeredAt: "desc" }, { id: "desc" }],
+      select: { id: true },
+    });
 
-  const attempt = await prisma.questionAttempt.update({
-    where: { id: existing.id },
-    data: { selected, correct, elapsedMs, confidence, answeredAt },
-    select: {
-      id: true,
-      selected: true,
-      correct: true,
-      answeredAt: true,
-      elapsedMs: true,
-      confidence: true,
-    },
+    const data = { selected, correct, elapsedMs, confidence, answeredAt };
+    if (existing.length === 0) {
+      return tx.questionAttempt.create({
+        data: {
+          userId: user.id,
+          sessionId,
+          questionId,
+          ...data,
+        },
+        select: {
+          id: true,
+          selected: true,
+          correct: true,
+          answeredAt: true,
+          elapsedMs: true,
+          confidence: true,
+        },
+      });
+    }
+
+    const [canonical, ...duplicates] = existing;
+    if (duplicates.length > 0) {
+      await tx.questionAttempt.deleteMany({
+        where: { id: { in: duplicates.map(({ id }) => id) } },
+      });
+    }
+
+    return tx.questionAttempt.update({
+      where: { id: canonical.id },
+      data,
+      select: {
+        id: true,
+        selected: true,
+        correct: true,
+        answeredAt: true,
+        elapsedMs: true,
+        confidence: true,
+      },
+    });
   });
 
   return NextResponse.json({ attempt });
