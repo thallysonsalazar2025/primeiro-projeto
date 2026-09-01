@@ -15,6 +15,7 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ sessionId: string }> },
 ) {
+  const requestReceivedAt = new Date();
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -65,10 +66,9 @@ export async function POST(
   }
 
   const correct = question.status === "ANNULLED" ? true : Boolean(selectedChoice?.isCorrect);
-  // Capture the submission timestamp before waiting for the advisory lock. A request
-  // that started earlier must not overwrite a newer answer just because it acquires
-  // the lock later after scheduler/network delay.
-  const answeredAt = new Date();
+  // Preserve the order in which requests reached this handler, independently of
+  // authentication/database latency or the time each request waits on the lock.
+  const answeredAt = requestReceivedAt;
   const lockKey = `${sessionId}:${questionId}`;
 
   const attempt = await prisma.$transaction(async (tx) => {
