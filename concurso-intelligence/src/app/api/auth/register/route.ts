@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Dados inválidos.' }, { status: 400 });
   }
 
-  const rateLimit = consumeAuthRateLimit(request, parsed.data.email, REGISTER_RATE_LIMIT);
+  const rateLimit = await consumeAuthRateLimit(request, parsed.data.email, REGISTER_RATE_LIMIT);
   if (rateLimit.limited) {
     return NextResponse.json(
       { error: 'Muitas tentativas de cadastro. Tente novamente mais tarde.' },
