@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { estimateForNewContest, estimateFromOfficialRanking, type HistoricalContest } from './ranking.ts';
+import {
+  estimateForNewContest,
+  estimateFromOfficialRanking,
+  estimateFromOfficialRankingAggregate,
+  type HistoricalContest,
+} from './ranking.ts';
 
 test('estimates rank and percentile from an official distribution with ties', () => {
   const result = estimateFromOfficialRanking(90, [
@@ -42,6 +47,29 @@ test('rejects an empty official distribution instead of fabricating a ranking', 
 test('rejects invalid numbers in an official distribution', () => {
   assert.throws(() => estimateFromOfficialRanking(Number.NaN, [{ score: 80 }]), /Score must be a finite number/);
   assert.throws(() => estimateFromOfficialRanking(80, [{ score: Number.NaN }]), /Official ranking contains an invalid score/);
+});
+
+test('rejects impossible official ranking aggregate counts', () => {
+  assert.throws(
+    () => estimateFromOfficialRankingAggregate({ total: -1, higher: 0, equal: 0 }),
+    /Official ranking total must be a non-negative safe integer/,
+  );
+  assert.throws(
+    () => estimateFromOfficialRankingAggregate({ total: 10, higher: -1, equal: 0 }),
+    /Official ranking higher count must be a non-negative safe integer/,
+  );
+  assert.throws(
+    () => estimateFromOfficialRankingAggregate({ total: 10, higher: 2, equal: 1.5 }),
+    /Official ranking equal count must be a non-negative safe integer/,
+  );
+  assert.throws(
+    () => estimateFromOfficialRankingAggregate({ total: 10, higher: 11, equal: 0 }),
+    /Official ranking aggregate is inconsistent/,
+  );
+  assert.throws(
+    () => estimateFromOfficialRankingAggregate({ total: 10, higher: 8, equal: 3 }),
+    /Official ranking aggregate is inconsistent/,
+  );
 });
 
 test('weights distinct historical distributions by board, cargo and subject similarity', () => {
