@@ -93,8 +93,10 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Generate Prisma client
         run: npm run db:generate
-      - name: Prepare ephemeral E2E database
-        run: npx prisma db push --skip-generate
+      - name: Deploy migrations into fresh E2E database
+        run: npx prisma migrate deploy
+      - name: Import and validate preserved DATAPREV legacy dataset
+        run: npm run db:import:dataprev
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Run Playwright smoke tests
