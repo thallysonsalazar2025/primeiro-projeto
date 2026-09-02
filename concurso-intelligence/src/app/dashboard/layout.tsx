@@ -1,22 +1,14 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
+import styles from './layout.module.css';
+
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
-    <>
+    <div className={styles.dashboardShell}>
       <nav
         aria-label="Navegação do dashboard"
-        style={{
-          display: 'flex',
-          gap: 10,
-          padding: '12px 24px',
-          background: '#ffffff',
-          borderBottom: '1px solid #e2e8f0',
-          position: 'sticky',
-          top: 0,
-          zIndex: 10,
-          overflowX: 'auto',
-        }}
+        className={styles.dashboardNav}
       >
         <Link href="/dashboard" style={linkStyle}>Visão geral</Link>
         <Link href="/dashboard/weekly" style={linkStyle}>Evolução semanal</Link>
@@ -24,7 +16,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <Link href="/account" style={linkStyle}>Meu perfil</Link>
       </nav>
       {children}
-    </>
+    </div>
   );
 }
 

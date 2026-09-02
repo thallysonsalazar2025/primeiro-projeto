@@ -33,7 +33,7 @@ export function PerformanceByContext() {
   if (!data) return <p style={{ color: '#64748b' }}>Carregando desempenho por contexto...</p>;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 14 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(280px,100%),1fr))', gap: 14 }}>
       <PerformanceList
         title="Desempenho por banca"
         empty="Responda questões vinculadas a uma banca para gerar este diagnóstico."
