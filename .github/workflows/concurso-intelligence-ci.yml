@@ -58,6 +58,27 @@ jobs:
         run: docker compose config --quiet
       - name: Build application image
         run: docker build --tag concurso-intelligence:ci .
+      - name: Smoke test Compose runtime and health endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          cleanup() {
+            docker compose down -v --remove-orphans
+          }
+          trap cleanup EXIT
+
+          docker compose up -d --build
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error http://127.0.0.1:3000/api/health >/dev/null; then
+              docker compose ps
+              exit 0
+            fi
+            sleep 2
+          done
+
+          docker compose ps
+          docker compose logs app postgres
+          exit 1
 
   e2e:
     runs-on: ubuntu-latest
