@@ -1,13 +1,22 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { contentSecurityPolicy, securityHeaders } from './securityHeaders.ts';
+import {
+  buildContentSecurityPolicy,
+  contentSecurityPolicy,
+  securityHeaders,
+} from './securityHeaders.ts';
 
 test('CSP blocks framing, plugins and non-self network access by default', () => {
   assert.match(contentSecurityPolicy, /default-src 'self'/);
   assert.match(contentSecurityPolicy, /frame-ancestors 'none'/);
   assert.match(contentSecurityPolicy, /object-src 'none'/);
   assert.match(contentSecurityPolicy, /connect-src 'self'/);
+});
+
+test('CSP permits eval only in development', () => {
+  assert.match(buildContentSecurityPolicy('development'), /script-src[^;]*'unsafe-eval'/);
+  assert.doesNotMatch(buildContentSecurityPolicy('production'), /'unsafe-eval'/);
 });
 
 test('security headers publish CSP together with existing hardening headers', () => {
