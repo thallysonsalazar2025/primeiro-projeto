@@ -1,15 +1,25 @@
-export const contentSecurityPolicy = [
-  "default-src 'self'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-  "object-src 'none'",
-  "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "font-src 'self' data:",
-  "connect-src 'self'",
-].join('; ');
+export function buildContentSecurityPolicy(environment = process.env.NODE_ENV) {
+  const scriptSources = ["'self'", "'unsafe-inline'"];
+
+  if (environment === 'development') {
+    scriptSources.push("'unsafe-eval'");
+  }
+
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+    `script-src ${scriptSources.join(' ')}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self'",
+  ].join('; ');
+}
+
+export const contentSecurityPolicy = buildContentSecurityPolicy();
 
 export const securityHeaders = [
   { key: 'Content-Security-Policy', value: contentSecurityPolicy },
