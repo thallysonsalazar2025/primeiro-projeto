@@ -5,8 +5,6 @@ const SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = [
   ['X-Frame-Options', 'DENY'],
   ['Referrer-Policy', 'strict-origin-when-cross-origin'],
   ['Permissions-Policy', 'camera=(), microphone=(), geolocation=()'],
-  ['Cross-Origin-Opener-Policy', 'same-origin'],
-  ['Cross-Origin-Resource-Policy', 'same-origin'],
 ];
 
 export function middleware(_request: NextRequest) {
