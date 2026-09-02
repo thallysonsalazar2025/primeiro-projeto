@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { RankingEstimatePanel } from './RankingEstimatePanel';
 import { SimulationBuilder } from './SimulationBuilder';
 
 type SubjectPerformance = {
@@ -375,12 +376,8 @@ export default async function DashboardPage() {
 
         <section style={panelStyle}>
           <h2 style={{ marginTop: 0 }}>Estimativa de classificação</h2>
-          <p style={{ color: '#64748b' }}>Quando houver resultado oficial, sua nota simulada será comparada à distribuição real do cargo e modalidade. Para concursos futuros, o sistema mostrará uma faixa estimada baseada em provas anteriores da banca e cargos semelhantes, sempre exibindo o nível de confiança.</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 14 }}>
-            <Metric label="Posição estimada" value="Aguardando preparatório" />
-            <Metric label="Percentil" value="—" />
-            <Metric label="Confiança" value="—" />
-          </div>
+          <p style={{ color: '#64748b' }}>Quando houver resultado oficial, sua nota-alvo será comparada à distribuição real do cargo e modalidade, sempre exibindo faixa, percentil e nível de confiança.</p>
+          <RankingEstimatePanel />
         </section>
 
         <section style={panelStyle}>
@@ -407,10 +404,6 @@ function formatElapsedTime(elapsedMs: number | null) {
 
 function Card({ title, value, hint }: { title: string; value: string; hint: string }) {
   return <article style={panelStyle}><span style={{ color: '#64748b' }}>{title}</span><strong style={{ display: 'block', fontSize: 30, marginTop: 8 }}>{value}</strong><small style={{ color: '#94a3b8' }}>{hint}</small></article>;
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return <div style={{ border: '1px solid #e2e8f0', borderRadius: 16, padding: 16 }}><span style={{ color: '#64748b' }}>{label}</span><strong style={{ display: 'block', marginTop: 8 }}>{value}</strong></div>;
 }
 
 const panelStyle = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 20, padding: 22, marginTop: 18, boxShadow: '0 8px 30px rgba(15,23,42,.04)' };
