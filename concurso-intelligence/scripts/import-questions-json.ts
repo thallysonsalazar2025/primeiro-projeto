@@ -1,5 +1,6 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { AnswerKeyKind, PrismaClient, QuestionStatus, SourceType } from '@prisma/client';
+import { serializeIngestionReport, type IngestionReport } from '../src/lib/ingestion-report.ts';
 import { questionFingerprint } from '../src/lib/question-fingerprint.ts';
 import {
   validateQuestionImportBatch,
@@ -38,7 +39,13 @@ async function appendFinalAnswerKey(questionId: string, answer: string | null, i
 async function main() {
   const inputPath = process.argv[2];
   if (!inputPath) {
-    throw new Error('Uso: npm run db:import:questions -- <arquivo.json>');
+    throw new Error('Uso: npm run db:import:questions -- <arquivo.json> [--report <relatorio.json>]');
+  }
+
+  const reportFlagIndex = process.argv.indexOf('--report');
+  const reportPath = reportFlagIndex >= 0 ? process.argv[reportFlagIndex + 1] : undefined;
+  if (reportFlagIndex >= 0 && !reportPath) {
+    throw new Error('--report requer um caminho de arquivo.');
   }
 
   const raw = await readFile(inputPath, 'utf8');
@@ -89,11 +96,31 @@ async function main() {
   const sourceType = SourceType[batch.source.type];
   let created = 0;
   let updated = 0;
+  let duplicates = 0;
+  const seenFingerprints = new Set<string>();
 
   for (const question of batch.questions) {
     const hasSubject = Object.prototype.hasOwnProperty.call(question, 'subject');
     const hasTopic = Object.prototype.hasOwnProperty.call(question, 'topic');
     const hasExplanation = Object.prototype.hasOwnProperty.call(question, 'explanation');
+
+    const fingerprint = questionFingerprint({
+      board: board.acronym,
+      year: batch.exam.year,
+      examTitle: batch.exam.title,
+      number: question.number,
+      statement: question.statement,
+      choices: question.choices.map(({ label, text }) => ({
+        label: label.trim().toUpperCase(),
+        text,
+      })),
+    });
+
+    if (seenFingerprints.has(fingerprint)) {
+      duplicates += 1;
+      continue;
+    }
+    seenFingerprints.add(fingerprint);
 
     const subject = question.subject?.trim()
       ? await prisma.subject.upsert({
@@ -110,18 +137,6 @@ async function main() {
           data: { subjectId: subject.id, name: question.topic.trim() },
         })
       : null;
-
-    const fingerprint = questionFingerprint({
-      board: board.acronym,
-      year: batch.exam.year,
-      examTitle: batch.exam.title,
-      number: question.number,
-      statement: question.statement,
-      choices: question.choices.map(({ label, text }) => ({
-        label: label.trim().toUpperCase(),
-        text,
-      })),
-    });
 
     const existing = await prisma.question.findUnique({
       where: { contentFingerprint: fingerprint },
@@ -233,7 +248,21 @@ async function main() {
     else created += 1;
   }
 
-  console.log(`Importação concluída: ${created} novas, ${updated} atualizadas, ${batch.questions.length} verificadas.`);
+  const report: IngestionReport = {
+    created,
+    updated,
+    duplicates,
+    rejected: 0,
+    verified: batch.questions.length,
+  };
+
+  console.log(
+    `Importação concluída: ${created} novas, ${updated} atualizadas, ${duplicates} duplicadas no lote, ${batch.questions.length} verificadas.`,
+  );
+  if (reportPath) {
+    await writeFile(reportPath, serializeIngestionReport(report), 'utf8');
+    console.log(`Relatório de ingestão gravado em ${reportPath}.`);
+  }
 }
 
 main()
