@@ -31,8 +31,21 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  const estimates = await Promise.all(targets.map(async (target) => {
-    if (!target.positionId || target.targetScore === null) return null;
+  const positionIds = targets.flatMap((target) => (target.positionId ? [target.positionId] : []));
+  const positions = positionIds.length
+    ? await prisma.contestPosition.findMany({
+        where: { id: { in: positionIds } },
+        select: { id: true, name: true, area: true, vacancies: true },
+      })
+    : [];
+  const positionById = new Map(positions.map((position) => [position.id, position]));
+
+  const estimates = [];
+  for (const target of targets) {
+    if (!target.positionId || target.targetScore === null) continue;
+
+    const position = positionById.get(target.positionId);
+    if (!position) continue;
 
     const targetScore = Number(target.targetScore);
     const where = {
@@ -41,27 +54,21 @@ export async function GET(request: NextRequest) {
       category,
     };
 
-    const [position, aggregate] = await Promise.all([
-      prisma.contestPosition.findUnique({
-        where: { id: target.positionId },
-        select: { id: true, name: true, area: true, vacancies: true },
-      }),
-      prisma.$transaction(
-        async (tx) => {
-          const [total, higher, equal] = await Promise.all([
-            tx.officialRankingRow.count({ where }),
-            tx.officialRankingRow.count({ where: { ...where, score: { gt: targetScore } } }),
-            tx.officialRankingRow.count({ where: { ...where, score: targetScore } }),
-          ]);
-          return { total, higher, equal };
-        },
-        { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
-      ),
-    ]);
+    const aggregate = await prisma.$transaction(
+      async (tx) => {
+        const [total, higher, equal] = await Promise.all([
+          tx.officialRankingRow.count({ where }),
+          tx.officialRankingRow.count({ where: { ...where, score: { gt: targetScore } } }),
+          tx.officialRankingRow.count({ where: { ...where, score: targetScore } }),
+        ]);
+        return { total, higher, equal };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
 
-    if (!aggregate.total || !position) return null;
+    if (!aggregate.total) continue;
 
-    return {
+    estimates.push({
       targetId: target.id,
       contest: target.contest,
       position,
@@ -69,8 +76,8 @@ export async function GET(request: NextRequest) {
       targetScore,
       estimate: estimateFromOfficialRankingAggregate(aggregate),
       disclaimer: 'Estimativa calculada sobre distribuição oficial importada; não substitui a classificação publicada pelo órgão.',
-    };
-  }));
+    });
+  }
 
-  return NextResponse.json({ estimates: estimates.filter((estimate) => estimate !== null) });
+  return NextResponse.json({ estimates });
 }
