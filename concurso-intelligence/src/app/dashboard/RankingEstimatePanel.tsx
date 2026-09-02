@@ -36,9 +36,16 @@ const categoryLabel: Record<RankingCategory, string> = {
 
 export function RankingEstimatePanel() {
   const [category, setCategory] = useState<RankingCategory>('GENERAL');
-  const [estimate, setEstimate] = useState<RankingEstimate | null>(null);
+  const [estimates, setEstimates] = useState<RankingEstimate[]>([]);
+  const [refreshToken, setRefreshToken] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  useEffect(() => {
+    const refresh = () => setRefreshToken((value) => value + 1);
+    window.addEventListener('preparation-target-saved', refresh);
+    return () => window.removeEventListener('preparation-target-saved', refresh);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -49,11 +56,11 @@ export function RankingEstimatePanel() {
       .then(async (response) => {
         if (!response.ok) throw new Error('ranking estimate request failed');
         const payload = await response.json() as { estimates?: RankingEstimate[] };
-        if (active) setEstimate(payload.estimates?.[0] ?? null);
+        if (active) setEstimates(payload.estimates ?? []);
       })
       .catch(() => {
         if (active) {
-          setEstimate(null);
+          setEstimates([]);
           setError(true);
         }
       })
@@ -64,7 +71,7 @@ export function RankingEstimatePanel() {
     return () => {
       active = false;
     };
-  }, [category]);
+  }, [category, refreshToken]);
 
   return (
     <>
@@ -86,8 +93,10 @@ export function RankingEstimatePanel() {
         <p style={{ color: '#64748b' }}>Calculando sua estimativa com os rankings oficiais disponíveis...</p>
       ) : error ? (
         <p style={{ color: '#b45309' }}>Não foi possível carregar a estimativa agora. Seu preparatório continua salvo.</p>
-      ) : estimate ? (
-        <EstimateContent estimate={estimate} />
+      ) : estimates.length > 0 ? (
+        <div style={{ display: 'grid', gap: 16 }}>
+          {estimates.map((estimate) => <EstimateContent key={estimate.targetId} estimate={estimate} />)}
+        </div>
       ) : (
         <p style={{ color: '#64748b' }}>Salve um preparatório com concurso, cargo e nota-alvo. A estimativa aparecerá quando houver ranking oficial importado para esta modalidade.</p>
       )}
@@ -101,7 +110,7 @@ function EstimateContent({ estimate }: { estimate: RankingEstimate }) {
   const percentileLabel = `${Math.round(percentile * 1000) / 10}%`;
 
   return (
-    <>
+    <article style={{ border: '1px solid #e2e8f0', borderRadius: 16, padding: 16 }}>
       <div style={{ marginBottom: 14 }}>
         <strong>{estimate.contest.name} · {estimate.position.name}</strong>
         <small style={{ display: 'block', marginTop: 4, color: '#64748b' }}>
@@ -114,7 +123,7 @@ function EstimateContent({ estimate }: { estimate: RankingEstimate }) {
         <Metric label="Confiança" value={confidenceLabel[confidence]} />
       </div>
       <small style={{ display: 'block', marginTop: 14, color: '#64748b' }}>{estimate.disclaimer}</small>
-    </>
+    </article>
   );
 }
 
