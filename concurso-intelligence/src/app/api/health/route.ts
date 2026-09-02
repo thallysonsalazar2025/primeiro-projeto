@@ -3,10 +3,8 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-const startedAt = Date.now();
-
 function uptimeSeconds() {
-  return Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+  return Math.max(0, Math.floor(process.uptime()));
 }
 
 export async function GET() {
