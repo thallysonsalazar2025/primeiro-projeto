@@ -25,6 +25,9 @@ test('keeps the authenticated dashboard usable without horizontal page overflow 
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(page.getByRole('navigation', { name: 'Navegação do dashboard' })).toBeVisible();
     await expect(page.getByRole('heading', { name: /Olá,/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Desempenho por banca' })).toBeVisible();
+    await expect(page.getByText('Questões respondidas', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Preparatório inteligente' })).toBeVisible();
 
     const documentOverflow = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
@@ -38,9 +41,6 @@ test('keeps the authenticated dashboard usable without horizontal page overflow 
     expect(navBox).not.toBeNull();
     expect(navBox!.x).toBeGreaterThanOrEqual(0);
     expect(navBox!.width).toBeLessThanOrEqual(390);
-
-    await expect(page.getByText('Questões respondidas', { exact: true })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Preparatório inteligente' })).toBeVisible();
   } finally {
     const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
     if (user) await prisma.user.delete({ where: { id: user.id } });
