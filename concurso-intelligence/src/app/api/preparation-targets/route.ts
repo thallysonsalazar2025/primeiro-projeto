@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth';
@@ -59,19 +60,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Position does not belong to contest' }, { status: 400 });
   }
 
+  const data = { targetScore: targetScore ?? null };
   const existing = await prisma.userContestTarget.findFirst({
     where: { userId: user.id, contestId, positionId },
     select: { id: true },
   });
 
-  const target = existing
-    ? await prisma.userContestTarget.update({
-        where: { id: existing.id },
-        data: { targetScore: targetScore ?? null },
-      })
-    : await prisma.userContestTarget.create({
-        data: { userId: user.id, contestId, positionId, targetScore: targetScore ?? null },
+  let target;
+  let created = false;
+  if (existing) {
+    target = await prisma.userContestTarget.update({ where: { id: existing.id }, data });
+  } else {
+    try {
+      target = await prisma.userContestTarget.create({
+        data: { userId: user.id, contestId, positionId, ...data },
       });
+      created = true;
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
+        throw error;
+      }
+
+      const racedTarget = await prisma.userContestTarget.findFirst({
+        where: { userId: user.id, contestId, positionId },
+        select: { id: true },
+      });
+      if (!racedTarget) throw error;
+      target = await prisma.userContestTarget.update({ where: { id: racedTarget.id }, data });
+    }
+  }
 
   return NextResponse.json({
     target: {
@@ -80,5 +97,5 @@ export async function POST(request: Request) {
       positionId: target.positionId,
       targetScore: target.targetScore === null ? null : Number(target.targetScore),
     },
-  }, { status: existing ? 200 : 201 });
+  }, { status: created ? 201 : 200 });
 }
