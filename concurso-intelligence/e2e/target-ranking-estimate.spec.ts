@@ -19,15 +19,26 @@ test('estimates saved preparation targets against official ranking rows', async 
   });
 
   await prisma.officialRankingRow.createMany({
-    data: [95, 85, 75, 65].map((score, index) => ({
-      contestId: contest.id,
-      positionId: position.id,
-      candidateKey: `target-candidate-${suffix}-${index}`,
-      score,
-      rank: index + 1,
-      category: 'GENERAL',
-      sourceUrl: `https://example.gov.br/target/${suffix}.pdf`,
-    })),
+    data: [
+      ...[95, 85, 75, 65].map((score, index) => ({
+        contestId: contest.id,
+        positionId: position.id,
+        candidateKey: `target-candidate-general-${suffix}-${index}`,
+        score,
+        rank: index + 1,
+        category: 'GENERAL' as const,
+        sourceUrl: `https://example.gov.br/target/${suffix}.pdf`,
+      })),
+      ...[92, 82, 72].map((score, index) => ({
+        contestId: contest.id,
+        positionId: position.id,
+        candidateKey: `target-candidate-pcd-${suffix}-${index}`,
+        score,
+        rank: index + 1,
+        category: 'PCD' as const,
+        sourceUrl: `https://example.gov.br/target/${suffix}.pdf`,
+      })),
+    ],
   });
 
   try {
@@ -58,15 +69,33 @@ test('estimates saved preparation targets against official ranking rows', async 
       category: 'GENERAL',
       targetScore: 80,
       estimate: {
-        lowerRank: 3,
-        upperRank: 3,
-        percentile: 50,
+        lowerRank: 2,
+        upperRank: 4,
+        estimatedRank: 3,
+        percentile: 0.5,
         sampleSize: 4,
         confidence: 'low',
+        method: 'official-distribution',
       },
     });
-    expect(payload.estimates[0].estimate.premise).toMatch(/estimativa baseada exclusivamente/i);
+    expect(payload.estimates[0].disclaimer).toMatch(/não substitui a classificação/i);
     expect(JSON.stringify(payload)).not.toContain('target-candidate-');
+
+    const pcdResponse = await page.request.get('/api/ranking/estimate?category=PCD');
+    expect(pcdResponse.status()).toBe(200);
+    const pcdPayload = await pcdResponse.json();
+    expect(pcdPayload.estimates).toHaveLength(1);
+    expect(pcdPayload.estimates[0]).toMatchObject({
+      category: 'PCD',
+      targetScore: 80,
+      estimate: {
+        estimatedRank: 3,
+        percentile: 1 / 3,
+        sampleSize: 3,
+        confidence: 'low',
+        method: 'official-distribution',
+      },
+    });
   } finally {
     const user = await prisma.user.findUnique({ where: { email } });
     if (user) await prisma.user.delete({ where: { id: user.id } });
