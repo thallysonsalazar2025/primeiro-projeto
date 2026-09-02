@@ -28,10 +28,10 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://concurso:concurso_local@postgres:5432/concurso_intelligence?schema=public
-      SESSION_SECRET: ${SESSION_SECRET:-concurso-local-session-secret-change-me-2026}
-      AUTH_RATE_LIMIT_SECRET: ${AUTH_RATE_LIMIT_SECRET:-concurso-local-rate-limit-secret-change-me-2026}
-      IP_HASH_SECRET: ${IP_HASH_SECRET:-concurso-local-ip-hash-secret-change-me-2026}
-      PASSWORD_RESET_SECRET: ${PASSWORD_RESET_SECRET:-concurso-local-password-reset-secret-change-me-2026}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required and must have at least 32 characters}
+      AUTH_RATE_LIMIT_SECRET: ${AUTH_RATE_LIMIT_SECRET:-}
+      IP_HASH_SECRET: ${IP_HASH_SECRET:-}
+      PASSWORD_RESET_SECRET: ${PASSWORD_RESET_SECRET:-}
     ports:
       - "3000:3000"
     healthcheck:
