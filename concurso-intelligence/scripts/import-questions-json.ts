@@ -1,5 +1,6 @@
-import { readFile } from 'node:fs/promises';
-import { AnswerKeyKind, PrismaClient, QuestionStatus, SourceType } from '@prisma/client';
+import { open, readFile, writeFile } from 'node:fs/promises';
+import { AnswerKeyKind, Prisma, PrismaClient, QuestionStatus, SourceType } from '@prisma/client';
+import { serializeIngestionReport, type IngestionReport } from '../src/lib/ingestion-report.ts';
 import { questionFingerprint } from '../src/lib/question-fingerprint.ts';
 import {
   validateQuestionImportBatch,
@@ -35,11 +36,26 @@ async function appendFinalAnswerKey(questionId: string, answer: string | null, i
   });
 }
 
+async function validateReportDestination(reportPath: string | undefined) {
+  if (!reportPath) return;
+
+  const handle = await open(reportPath, 'a');
+  await handle.close();
+}
+
 async function main() {
   const inputPath = process.argv[2];
   if (!inputPath) {
-    throw new Error('Uso: npm run db:import:questions -- <arquivo.json>');
+    throw new Error('Uso: npm run db:import:questions -- <arquivo.json> [--report <relatorio.json>]');
   }
+
+  const reportFlagIndex = process.argv.indexOf('--report');
+  const reportPath = reportFlagIndex >= 0 ? process.argv[reportFlagIndex + 1] : undefined;
+  if (reportFlagIndex >= 0 && !reportPath) {
+    throw new Error('--report requer um caminho de arquivo.');
+  }
+
+  await validateReportDestination(reportPath);
 
   const raw = await readFile(inputPath, 'utf8');
   const batch = validateQuestionImportBatch(JSON.parse(raw) as QuestionImportBatch);
@@ -89,11 +105,29 @@ async function main() {
   const sourceType = SourceType[batch.source.type];
   let created = 0;
   let updated = 0;
+  let duplicates = 0;
+  const seenFingerprints = new Set<string>();
 
   for (const question of batch.questions) {
     const hasSubject = Object.prototype.hasOwnProperty.call(question, 'subject');
     const hasTopic = Object.prototype.hasOwnProperty.call(question, 'topic');
     const hasExplanation = Object.prototype.hasOwnProperty.call(question, 'explanation');
+
+    const fingerprint = questionFingerprint({
+      board: board.acronym,
+      year: batch.exam.year,
+      examTitle: batch.exam.title,
+      number: question.number,
+      statement: question.statement,
+      choices: question.choices.map(({ label, text }) => ({
+        label: label.trim().toUpperCase(),
+        text,
+      })),
+    });
+
+    const duplicateInBatch = seenFingerprints.has(fingerprint);
+    if (duplicateInBatch) duplicates += 1;
+    else seenFingerprints.add(fingerprint);
 
     const subject = question.subject?.trim()
       ? await prisma.subject.upsert({
@@ -111,52 +145,47 @@ async function main() {
         })
       : null;
 
-    const fingerprint = questionFingerprint({
-      board: board.acronym,
-      year: batch.exam.year,
-      examTitle: batch.exam.title,
-      number: question.number,
-      statement: question.statement,
-      choices: question.choices.map(({ label, text }) => ({
-        label: label.trim().toUpperCase(),
-        text,
-      })),
-    });
-
-    const existing = await prisma.question.findUnique({
-      where: { contentFingerprint: fingerprint },
-      select: { id: true },
-    });
-
     const status = QuestionStatus[question.status ?? 'ACTIVE'];
-    const saved = await prisma.question.upsert({
-      where: { contentFingerprint: fingerprint },
-      update: {
-        status,
-        ...(hasSubject ? { subjectId: subject?.id ?? null } : {}),
-        ...(hasTopic ? { topicId: topic?.id ?? null } : {}),
-        ...(hasExplanation ? { explanation: question.explanation?.trim() || null } : {}),
-        sourceUrl: batch.source.url,
-        sourcePage: question.sourcePage ?? null,
-        sourceLabel: question.sourceLabel?.trim() || null,
-        lastVerifiedAt: verifiedAt,
-      },
-      create: {
-        examId: exam.id,
-        boardId: board.id,
-        subjectId: subject?.id ?? null,
-        topicId: topic?.id ?? null,
-        number: question.number ?? null,
-        statement: question.statement.trim(),
-        explanation: question.explanation?.trim() || null,
-        status,
-        sourceUrl: batch.source.url,
-        sourcePage: question.sourcePage ?? null,
-        sourceLabel: question.sourceLabel?.trim() || null,
-        contentFingerprint: fingerprint,
-        lastVerifiedAt: verifiedAt,
-      },
-    });
+    const updateData = {
+      status,
+      ...(hasSubject ? { subjectId: subject?.id ?? null } : {}),
+      ...(hasTopic ? { topicId: topic?.id ?? null } : {}),
+      ...(hasExplanation ? { explanation: question.explanation?.trim() || null } : {}),
+      sourceUrl: batch.source.url,
+      sourcePage: question.sourcePage ?? null,
+      sourceLabel: question.sourceLabel?.trim() || null,
+      lastVerifiedAt: verifiedAt,
+    };
+    const createData = {
+      examId: exam.id,
+      boardId: board.id,
+      subjectId: subject?.id ?? null,
+      topicId: topic?.id ?? null,
+      number: question.number ?? null,
+      statement: question.statement.trim(),
+      explanation: question.explanation?.trim() || null,
+      status,
+      sourceUrl: batch.source.url,
+      sourcePage: question.sourcePage ?? null,
+      sourceLabel: question.sourceLabel?.trim() || null,
+      contentFingerprint: fingerprint,
+      lastVerifiedAt: verifiedAt,
+    };
+
+    let saved;
+    let wasCreated = false;
+    try {
+      saved = await prisma.question.create({ data: createData });
+      wasCreated = true;
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
+        throw error;
+      }
+      saved = await prisma.question.update({
+        where: { contentFingerprint: fingerprint },
+        data: updateData,
+      });
+    }
 
     const currentLabels = question.choices.map((choice) => choice.label.trim().toUpperCase());
     for (const choice of question.choices) {
@@ -229,11 +258,27 @@ async function main() {
       });
     }
 
-    if (existing) updated += 1;
-    else created += 1;
+    if (!duplicateInBatch) {
+      if (wasCreated) created += 1;
+      else updated += 1;
+    }
   }
 
-  console.log(`Importação concluída: ${created} novas, ${updated} atualizadas, ${batch.questions.length} verificadas.`);
+  const report: IngestionReport = {
+    created,
+    updated,
+    duplicates,
+    rejected: 0,
+    verified: batch.questions.length,
+  };
+
+  console.log(
+    `Importação concluída: ${created} novas, ${updated} atualizadas, ${duplicates} duplicadas no lote, ${batch.questions.length} verificadas.`,
+  );
+  if (reportPath) {
+    await writeFile(reportPath, serializeIngestionReport(report), 'utf8');
+    console.log(`Relatório de ingestão gravado em ${reportPath}.`);
+  }
 }
 
 main()
