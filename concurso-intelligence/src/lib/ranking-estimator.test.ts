@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { estimatePlacementFromOfficialScores } from './ranking-estimator';
+import { estimatePlacementFromOfficialScores } from './ranking-estimator.ts';
 
 test('returns a rank interval when the simulated score ties official candidates', () => {
   const estimate = estimatePlacementFromOfficialScores(80, [95, 90, 80, 80, 75, 70]);
