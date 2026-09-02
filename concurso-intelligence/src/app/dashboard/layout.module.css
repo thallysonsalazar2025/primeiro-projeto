@@ -24,7 +24,6 @@
 
   .dashboardShell > main {
     padding: 14px !important;
-    overflow-x: clip;
   }
 
   .dashboardShell > main section {
@@ -35,6 +34,13 @@
   .dashboardShell > main article,
   .dashboardShell > main div {
     min-width: 0;
+  }
+
+  .dashboardShell > main article,
+  .dashboardShell > main p,
+  .dashboardShell > main strong,
+  .dashboardShell > main small {
+    overflow-wrap: anywhere;
   }
 
   .dashboardShell > main a,
