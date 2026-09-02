@@ -92,6 +92,7 @@ export function SimulationBuilder() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Não foi possível salvar o preparatório.');
       setTargetMessage('Preparatório salvo. A estimativa poderá usar este concurso e cargo como referência.');
+      window.dispatchEvent(new Event('preparation-target-saved'));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível salvar o preparatório.');
     } finally {
