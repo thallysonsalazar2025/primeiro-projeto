@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { resolveSessionSecret, sessionSecretBytes } from './session-secret';
+import { resolveSessionSecret, sessionSecretBytes } from './session-secret.ts';
 
 test('rejects missing SESSION_SECRET without depending on runner env', () => {
   const previous = process.env.SESSION_SECRET;
