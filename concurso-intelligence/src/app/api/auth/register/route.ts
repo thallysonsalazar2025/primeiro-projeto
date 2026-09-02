@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { createSession } from '@/lib/auth';
 import { consumeAuthRateLimit } from '@/lib/auth-rate-limit';
+import { resolveSessionSecret } from '@/lib/session-secret';
 
 const schema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
@@ -18,6 +19,8 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Dados inválidos.' }, { status: 400 });
   }
+
+  resolveSessionSecret();
 
   const rateLimit = await consumeAuthRateLimit(request, parsed.data.email, REGISTER_RATE_LIMIT);
   if (rateLimit.limited) {

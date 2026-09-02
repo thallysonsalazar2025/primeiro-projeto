@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { createSession } from '@/lib/auth';
 import { getClientIp, hashClientIp, selectIpHashSecret } from '@/lib/client-ip';
 import { consumeAuthRateLimit } from '@/lib/auth-rate-limit';
+import { resolveSessionSecret } from '@/lib/session-secret';
 
 const schema = z.object({
   email: z.string().email().transform((v) => v.toLowerCase()),
@@ -20,6 +21,8 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Credenciais inválidas.' }, { status: 400 });
   }
+
+  resolveSessionSecret();
 
   const rateLimit = await consumeAuthRateLimit(request, parsed.data.email, LOGIN_RATE_LIMIT);
   if (rateLimit.limited) {
