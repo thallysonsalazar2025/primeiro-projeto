@@ -31,23 +31,33 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-
       - name: Generate Prisma client
         run: npm run db:generate
-
       - name: Typecheck and validate Prisma schema
         run: npm run quality
-
       - name: Build production application
         run: npm run build
+
+  docker:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: concurso-intelligence
+    env:
+      SESSION_SECRET: ci-session-secret-at-least-32-characters
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+      - name: Build application image
+        run: docker build --tag concurso-intelligence:ci .
 
   e2e:
     runs-on: ubuntu-latest
@@ -75,27 +85,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-
       - name: Generate Prisma client
         run: npm run db:generate
-
-      - name: Prepare ephemeral E2E database
-        run: npx prisma db push --skip-generate
-
+      - name: Deploy migrations into fresh E2E database
+        run: npx prisma migrate deploy
+      - name: Import and validate preserved DATAPREV legacy dataset
+        run: npm run db:import:dataprev
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-
       - name: Run Playwright smoke tests
         run: npm run test:e2e
-
       - name: Upload Playwright failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4

@@ -17,5 +17,41 @@ services:
     volumes:
       - concurso_intelligence_pgdata:/var/lib/postgresql/data
 
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: concurso-intelligence-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://concurso:concurso_local@postgres:5432/concurso_intelligence?schema=public
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required and must have at least 32 characters}
+      AUTH_RATE_LIMIT_SECRET: ${AUTH_RATE_LIMIT_SECRET:-}
+      IP_HASH_SECRET: ${IP_HASH_SECRET:-}
+      PASSWORD_RESET_SECRET: ${PASSWORD_RESET_SECRET:-}
+      PASSWORD_RESET_WEBHOOK_URL: ${PASSWORD_RESET_WEBHOOK_URL:-}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:3000}
+      DATAPREV_LEGACY_ROOT: /legacy
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../index.html:/legacy/index.html:ro
+      - ../questions-1.js:/legacy/questions-1.js:ro
+      - ../questions-2.js:/legacy/questions-2.js:ro
+      - ../questions-3.js:/legacy/questions-3.js:ro
+      - ../questions-4.js:/legacy/questions-4.js:ro
+      - ../questions-5.js:/legacy/questions-5.js:ro
+      - ../questions-6.js:/legacy/questions-6.js:ro
+      - ../questions-7.js:/legacy/questions-7.js:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
 volumes:
   concurso_intelligence_pgdata:

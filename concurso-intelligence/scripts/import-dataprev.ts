@@ -4,7 +4,9 @@ import { AnswerKeyKind, PrismaClient, QuestionStatus, SourceType } from "@prisma
 import { dataprevFingerprint, type DataprevLegacyQuestion } from "../src/lib/dataprev-fingerprint.ts";
 
 const prisma = new PrismaClient();
-const LEGACY_ROOT = path.resolve(process.cwd(), "..");
+const LEGACY_ROOT = process.env.DATAPREV_LEGACY_ROOT
+  ? path.resolve(process.env.DATAPREV_LEGACY_ROOT)
+  : path.resolve(process.cwd(), "..");
 const BOARD = { acronym: "FGV", name: "Fundação Getulio Vargas" };
 const CONTEST = { name: "DATAPREV", year: 2024 };
 const POSITION = { name: "ATI - Desenvolvimento de Software", area: "Tecnologia da Informação" };
