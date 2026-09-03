@@ -1,4 +1,4 @@
-import { isSensitiveSourceQueryKey } from './source-url-security.ts';
+import { validatePublicHttpUrl } from './source-url-security.ts';
 
 export const QUESTION_SOURCE_TYPES = [
   'OFFICIAL_PDF',
@@ -60,26 +60,6 @@ export type QuestionImportBatch = {
 
 function requireNonBlank(value: string, field: string) {
   if (!value.trim()) throw new Error(`${field} não pode ser vazio`);
-}
-
-function validatePublicHttpUrl(value: string, field: string) {
-  let parsed: URL;
-  try {
-    parsed = new URL(value);
-  } catch {
-    throw new Error(`${field} deve ser uma URL válida`);
-  }
-  if (!['http:', 'https:'].includes(parsed.protocol)) {
-    throw new Error(`${field} deve usar http ou https`);
-  }
-  if (parsed.username || parsed.password) {
-    throw new Error(`${field} não pode conter credenciais embutidas`);
-  }
-  for (const key of parsed.searchParams.keys()) {
-    if (isSensitiveSourceQueryKey(key)) {
-      throw new Error(`${field} não pode conter parâmetro sensível: ${key}`);
-    }
-  }
 }
 
 export function validateQuestionImportBatch(batch: QuestionImportBatch) {
