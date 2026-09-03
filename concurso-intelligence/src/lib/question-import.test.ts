@@ -69,3 +69,17 @@ test('rejects provenance URLs with embedded credentials before persistence', () 
   batch.source.url = 'https://collector:secret@example.gov.br/prova.pdf';
   assert.throws(() => validateQuestionImportBatch(batch), /credenciais embutidas/);
 });
+
+test('rejects provenance URLs with sensitive query parameters case-insensitively', () => {
+  for (const key of ['token', 'API_KEY', 'Signature']) {
+    const batch = validBatch();
+    batch.source.url = `https://example.gov.br/prova.pdf?${key}=secret-value`;
+    assert.throws(() => validateQuestionImportBatch(batch), /parâmetro sensível/);
+  }
+});
+
+test('allows non-sensitive provenance query parameters', () => {
+  const batch = validBatch();
+  batch.source.url = 'https://example.gov.br/prova.pdf?edicao=2026&cargo=analista';
+  assert.equal(validateQuestionImportBatch(batch), batch);
+});
