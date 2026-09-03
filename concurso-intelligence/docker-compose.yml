@@ -53,6 +53,25 @@ services:
       retries: 12
       start_period: 20s
 
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: concurso-intelligence-worker
+    restart: unless-stopped
+    profiles: ["worker"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://concurso:concurso_local@postgres:5432/concurso_intelligence?schema=public
+      INGESTION_INBOX_DIR: /imports
+      INGESTION_INTERVAL_SECONDS: ${INGESTION_INTERVAL_SECONDS:-60}
+      INGESTION_ONESHOT: ${INGESTION_ONESHOT:-false}
+    volumes:
+      - ${INGESTION_IMPORT_DIR:-./imports}:/imports
+    command: ["sh", "-c", "npx prisma migrate deploy && npm run worker:ingestion"]
+
   tunnel:
     image: cloudflare/cloudflared:2026.7.3
     container_name: concurso-intelligence-tunnel
