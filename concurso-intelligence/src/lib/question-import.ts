@@ -62,6 +62,13 @@ function requireNonBlank(value: string, field: string) {
   if (!value.trim()) throw new Error(`${field} não pode ser vazio`);
 }
 
+function validateOptionalSha256(value: string | null | undefined, field: string) {
+  if (value == null || !value.trim()) return;
+  if (!/^[a-fA-F0-9]{64}$/.test(value.trim())) {
+    throw new Error(`${field} deve conter um SHA-256 hexadecimal de 64 caracteres`);
+  }
+}
+
 export function validateQuestionImportBatch(batch: QuestionImportBatch) {
   requireNonBlank(batch.board.acronym, 'board.acronym');
   requireNonBlank(batch.board.name, 'board.name');
@@ -70,6 +77,7 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
   if (!Number.isInteger(batch.exam.year) || batch.exam.year < 1900 || batch.exam.year > 2200) {
     throw new Error('exam.year inválido');
   }
+  validateOptionalSha256(batch.exam.sourceSha256, 'exam.sourceSha256');
 
   if (!QUESTION_SOURCE_TYPES.includes(batch.source.type)) {
     throw new Error(`source.type inválido: ${batch.source.type}`);
