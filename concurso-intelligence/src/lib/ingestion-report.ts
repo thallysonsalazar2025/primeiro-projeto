@@ -1,10 +1,11 @@
 export type IngestionReport = {
+  schemaVersion: 1;
   created: number;
   updated: number;
   duplicates: number;
   rejected: number;
   verified: number;
-  batch?: {
+  batch: {
     generatedAt: string;
     inputSha256: string;
     sourceType: string;
