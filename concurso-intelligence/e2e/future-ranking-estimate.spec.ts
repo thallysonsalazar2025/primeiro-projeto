@@ -1,4 +1,11 @@
+import { PrismaClient } from '@prisma/client';
 import { expect, test } from '@playwright/test';
+
+const prisma = new PrismaClient();
+
+test.afterAll(async () => {
+  await prisma.$disconnect();
+});
 
 test('exposes authenticated future-ranking projection with explicit assumptions', async ({ page }) => {
   const unauthorized = await page.request.post('/api/ranking/future-estimate', {
@@ -20,52 +27,57 @@ test('exposes authenticated future-ranking projection with explicit assumptions'
   await page.getByRole('button', { name: 'Criar conta' }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 
-  const history = [
-    {
-      contestId: 'fgv-ti-2025',
-      board: 'FGV',
-      cargoFamily: 'TI',
-      subjectSimilarity: 1,
-      difficultySimilarity: 0.9,
-      vacancySimilarity: 0.8,
-      rows: Array.from({ length: 20 }, (_, index) => ({ score: index + 70 })),
-    },
-  ];
+  try {
+    const history = [
+      {
+        contestId: 'fgv-ti-2025',
+        board: 'FGV',
+        cargoFamily: 'TI',
+        subjectSimilarity: 1,
+        difficultySimilarity: 0.9,
+        vacancySimilarity: 0.8,
+        rows: Array.from({ length: 20 }, (_, index) => ({ score: index + 70 })),
+      },
+    ];
 
-  const response = await page.request.post('/api/ranking/future-estimate', {
-    data: {
-      simulatedScorePercent: 80,
+    const response = await page.request.post('/api/ranking/future-estimate', {
+      data: {
+        simulatedScorePercent: 80,
+        expectedCandidates: 500,
+        targetBoard: 'FGV',
+        targetCargoFamily: 'TI',
+        history,
+      },
+    });
+
+    expect(response.status()).toBe(200);
+    const payload = await response.json();
+    expect(payload.estimate).toMatchObject({
+      method: 'historical-board-model',
+      sampleSize: 20,
+      confidence: 'low',
+    });
+    expect(payload.estimate.lowerRank).toBeGreaterThanOrEqual(1);
+    expect(payload.estimate.upperRank).toBeLessThanOrEqual(500);
+    expect(payload.assumptions).toEqual({
       expectedCandidates: 500,
       targetBoard: 'FGV',
       targetCargoFamily: 'TI',
-      history,
-    },
-  });
+      historicalContests: 1,
+    });
+    expect(payload.disclaimer).toMatch(/não representa classificação oficial/i);
 
-  expect(response.status()).toBe(200);
-  const payload = await response.json();
-  expect(payload.estimate).toMatchObject({
-    method: 'historical-board-model',
-    sampleSize: 20,
-    confidence: 'low',
-  });
-  expect(payload.estimate.lowerRank).toBeGreaterThanOrEqual(1);
-  expect(payload.estimate.upperRank).toBeLessThanOrEqual(500);
-  expect(payload.assumptions).toEqual({
-    expectedCandidates: 500,
-    targetBoard: 'FGV',
-    targetCargoFamily: 'TI',
-    historicalContests: 1,
-  });
-  expect(payload.disclaimer).toMatch(/não representa classificação oficial/i);
-
-  const invalid = await page.request.post('/api/ranking/future-estimate', {
-    data: {
-      simulatedScorePercent: 101,
-      expectedCandidates: 500,
-      targetBoard: 'FGV',
-      history,
-    },
-  });
-  expect(invalid.status()).toBe(400);
+    const invalid = await page.request.post('/api/ranking/future-estimate', {
+      data: {
+        simulatedScorePercent: 101,
+        expectedCandidates: 500,
+        targetBoard: 'FGV',
+        history,
+      },
+    });
+    expect(invalid.status()).toBe(400);
+  } finally {
+    const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+    if (user) await prisma.user.delete({ where: { id: user.id } });
+  }
 });
