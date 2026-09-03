@@ -36,6 +36,15 @@ async function moveToBucket(filePath: string, kind: ImportKind, bucket: 'process
   return destination;
 }
 
+async function claimFile(filePath: string, kind: ImportKind) {
+  const processingDir = join(inboxRoot, 'processing', kind);
+  await mkdir(processingDir, { recursive: true });
+
+  const claimedPath = join(processingDir, `${Date.now()}-${basename(filePath)}`);
+  await rename(filePath, claimedPath);
+  return claimedPath;
+}
+
 function runImporter(importer: string, filePath: string) {
   return new Promise<void>((resolve, reject) => {
     const child = spawn(process.execPath, ['--experimental-strip-types', importer, filePath], {
@@ -62,14 +71,20 @@ async function processKind(kind: ImportKind) {
     .sort();
 
   for (const filePath of files) {
+    let claimedPath: string | null = null;
     try {
-      console.log(`[ingestion-worker] importando ${kind}: ${filePath}`);
-      await runImporter(importers[kind], filePath);
-      const archivedPath = await moveToBucket(filePath, kind, 'processed');
+      claimedPath = await claimFile(filePath, kind);
+      console.log(`[ingestion-worker] importando ${kind}: ${claimedPath}`);
+      await runImporter(importers[kind], claimedPath);
+      const archivedPath = await moveToBucket(claimedPath, kind, 'processed');
       console.log(`[ingestion-worker] concluído: ${archivedPath}`);
     } catch (error) {
-      const failedPath = await moveToBucket(filePath, kind, 'failed');
-      console.error(`[ingestion-worker] falha; arquivo isolado em ${failedPath}`);
+      if (claimedPath) {
+        const failedPath = await moveToBucket(claimedPath, kind, 'failed');
+        console.error(`[ingestion-worker] falha; arquivo isolado em ${failedPath}`);
+      } else {
+        console.error(`[ingestion-worker] falha ao reivindicar arquivo; lote permanece na fila: ${filePath}`);
+      }
       console.error(error instanceof Error ? error.message : error);
     }
   }
