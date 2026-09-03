@@ -78,6 +78,14 @@ test('rejects provenance URLs with sensitive query parameters case-insensitively
   }
 });
 
+test('rejects compound and provider-prefixed sensitive query parameters', () => {
+  for (const key of ['client_secret', 'clientSecret', 'X-Amz-Signature']) {
+    const batch = validBatch();
+    batch.source.url = `https://example.gov.br/prova.pdf?${key}=secret-value`;
+    assert.throws(() => validateQuestionImportBatch(batch), /parâmetro sensível/);
+  }
+});
+
 test('allows non-sensitive provenance query parameters', () => {
   const batch = validBatch();
   batch.source.url = 'https://example.gov.br/prova.pdf?edicao=2026&cargo=analista';
