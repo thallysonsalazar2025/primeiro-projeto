@@ -13,6 +13,7 @@ test('exposes authenticated future-ranking projection with explicit assumptions'
       simulatedScorePercent: 80,
       expectedCandidates: 500,
       targetBoard: 'FGV',
+      targetCategory: 'GENERAL',
       history: [],
     },
   });
@@ -36,7 +37,10 @@ test('exposes authenticated future-ranking projection with explicit assumptions'
         subjectSimilarity: 1,
         difficultySimilarity: 0.9,
         vacancySimilarity: 0.8,
-        rows: Array.from({ length: 20 }, (_, index) => ({ score: index + 70 })),
+        rows: Array.from({ length: 20 }, (_, index) => ({
+          score: index + 70,
+          category: 'GENERAL',
+        })),
       },
     ];
 
@@ -46,6 +50,7 @@ test('exposes authenticated future-ranking projection with explicit assumptions'
         expectedCandidates: 500,
         targetBoard: 'FGV',
         targetCargoFamily: 'TI',
+        targetCategory: 'GENERAL',
         history,
       },
     });
@@ -63,6 +68,7 @@ test('exposes authenticated future-ranking projection with explicit assumptions'
       expectedCandidates: 500,
       targetBoard: 'FGV',
       targetCargoFamily: 'TI',
+      targetCategory: 'GENERAL',
       historicalContests: 1,
     });
     expect(payload.disclaimer).toMatch(/não representa classificação oficial/i);
@@ -72,10 +78,41 @@ test('exposes authenticated future-ranking projection with explicit assumptions'
         simulatedScorePercent: 101,
         expectedCandidates: 500,
         targetBoard: 'FGV',
+        targetCategory: 'GENERAL',
         history,
       },
     });
     expect(invalid.status()).toBe(400);
+
+    const duplicateHistory = await page.request.post('/api/ranking/future-estimate', {
+      data: {
+        simulatedScorePercent: 80,
+        expectedCandidates: 500,
+        targetBoard: 'FGV',
+        targetCategory: 'GENERAL',
+        history: [history[0], { ...history[0] }],
+      },
+    });
+    expect(duplicateHistory.status()).toBe(400);
+
+    const mixedCategory = await page.request.post('/api/ranking/future-estimate', {
+      data: {
+        simulatedScorePercent: 80,
+        expectedCandidates: 500,
+        targetBoard: 'FGV',
+        targetCategory: 'GENERAL',
+        history: [
+          {
+            ...history[0],
+            contestId: 'fgv-ti-2024',
+            rows: history[0].rows.map((row, index) =>
+              index === 0 ? { ...row, category: 'PCD' } : row,
+            ),
+          },
+        ],
+      },
+    });
+    expect(mixedCategory.status()).toBe(400);
   } finally {
     const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
     if (user) await prisma.user.delete({ where: { id: user.id } });
