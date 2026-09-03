@@ -33,6 +33,14 @@ test('returns catalog relationships and renders dependent preparation filters', 
       vacancies: 5,
     },
   });
+  const otherPosition = await prisma.contestPosition.create({
+    data: {
+      contestId: contest.id,
+      name: `Analista Administrativo ${suffix}`,
+      area: 'Administrativa',
+      vacancies: 3,
+    },
+  });
   const subject = await prisma.subject.create({
     data: { name: `Disciplina Catálogo ${suffix}` },
   });
@@ -66,14 +74,20 @@ test('returns catalog relationships and renders dependent preparation filters', 
         name: organization.name,
         acronym: organization.acronym,
       },
-      positions: [
+      positions: expect.arrayContaining([
         {
           id: position.id,
           name: position.name,
           area: position.area,
           vacancies: position.vacancies,
         },
-      ],
+        {
+          id: otherPosition.id,
+          name: otherPosition.name,
+          area: otherPosition.area,
+          vacancies: otherPosition.vacancies,
+        },
+      ]),
     }));
     expect(payload.subjects).toContainEqual(expect.objectContaining({
       id: subject.id,
@@ -101,6 +115,7 @@ test('returns catalog relationships and renders dependent preparation filters', 
       .locator('select');
     const boardSelect = selectByField('Banca');
     const contestSelect = selectByField('Concurso');
+    const areaSelect = selectByField('Área');
     const positionSelect = selectByField('Cargo');
     const subjectSelect = selectByField('Disciplina');
     const topicSelect = selectByField('Assunto');
@@ -108,11 +123,22 @@ test('returns catalog relationships and renders dependent preparation filters', 
     await boardSelect.selectOption({ label: `${board.acronym} · ${board.name}` });
     await expect(boardSelect).not.toHaveValue('');
 
+    await expect(areaSelect).toBeDisabled();
     await expect(positionSelect).toBeDisabled();
     await contestSelect.selectOption({ label: `${contest.name} · 2026` });
+    await expect(areaSelect).toBeEnabled();
     await expect(positionSelect).toBeEnabled();
+
+    await areaSelect.selectOption({ label: 'Tecnologia' });
+    await expect(positionSelect.locator('option', { hasText: `${position.name} · Tecnologia` })).toHaveCount(1);
+    await expect(positionSelect.locator('option', { hasText: `${otherPosition.name} · Administrativa` })).toHaveCount(0);
     await positionSelect.selectOption({ label: `${position.name} · Tecnologia` });
     await expect(positionSelect).not.toHaveValue('');
+
+    await areaSelect.selectOption({ label: 'Administrativa' });
+    await expect(positionSelect).toHaveValue('');
+    await expect(positionSelect.locator('option', { hasText: `${position.name} · Tecnologia` })).toHaveCount(0);
+    await expect(positionSelect.locator('option', { hasText: `${otherPosition.name} · Administrativa` })).toHaveCount(1);
 
     await expect(topicSelect).toBeDisabled();
     await subjectSelect.selectOption({ label: subject.name });
