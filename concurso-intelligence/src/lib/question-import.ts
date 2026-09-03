@@ -26,6 +26,16 @@ const SENSITIVE_SOURCE_QUERY_KEYS = new Set([
   'token',
 ]);
 
+const SENSITIVE_SOURCE_QUERY_KEY_PARTS = new Set([
+  'auth',
+  'authorization',
+  'key',
+  'password',
+  'secret',
+  'signature',
+  'token',
+]);
+
 export type QuestionSourceType = (typeof QUESTION_SOURCE_TYPES)[number];
 export type ImportedQuestionStatus = (typeof IMPORTED_QUESTION_STATUSES)[number];
 
@@ -73,6 +83,19 @@ function requireNonBlank(value: string, field: string) {
   if (!value.trim()) throw new Error(`${field} não pode ser vazio`);
 }
 
+function isSensitiveSourceQueryKey(key: string) {
+  const normalized = key.toLowerCase();
+  if (SENSITIVE_SOURCE_QUERY_KEYS.has(normalized)) return true;
+
+  const parts = key
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+
+  return parts.some((part) => SENSITIVE_SOURCE_QUERY_KEY_PARTS.has(part));
+}
+
 export function validateQuestionImportBatch(batch: QuestionImportBatch) {
   requireNonBlank(batch.board.acronym, 'board.acronym');
   requireNonBlank(batch.board.name, 'board.name');
@@ -99,7 +122,7 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
     throw new Error('source.url não pode conter credenciais embutidas');
   }
   for (const key of parsedSource.searchParams.keys()) {
-    if (SENSITIVE_SOURCE_QUERY_KEYS.has(key.toLowerCase())) {
+    if (isSensitiveSourceQueryKey(key)) {
       throw new Error(`source.url não pode conter parâmetro sensível: ${key}`);
     }
   }
