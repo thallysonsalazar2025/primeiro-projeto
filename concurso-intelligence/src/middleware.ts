@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { buildRequestLog } from './lib/request-log';
+
 const SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = [
   ['X-Content-Type-Options', 'nosniff'],
   ['X-Frame-Options', 'DENY'],
@@ -23,6 +25,16 @@ export function middleware(request: NextRequest) {
   const requestId = resolveRequestId(request);
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-request-id', requestId);
+
+  console.info(
+    JSON.stringify(
+      buildRequestLog({
+        requestId,
+        method: request.method,
+        pathname: request.nextUrl.pathname,
+      }),
+    ),
+  );
 
   const response = NextResponse.next({
     request: {
