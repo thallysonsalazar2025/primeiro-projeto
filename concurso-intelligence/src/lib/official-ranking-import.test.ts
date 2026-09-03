@@ -17,6 +17,24 @@ test('valida payload oficial, normaliza chave e aplica categoria geral por padr�
   assert.doesNotThrow(() => assertNoDuplicateRankingRows(payload));
 });
 
+test('rejeita URL de proveniência fora de HTTP/HTTPS', () => {
+  assert.throws(() => parseOfficialRankingImport({
+    contestId: 'contest-1',
+    positionId: 'position-1',
+    sourceUrl: 'ftp://example.gov.br/resultado.pdf',
+    rows: [{ candidateKey: 'candidate-1', score: 82.5 }],
+  }), /sourceUrl deve usar http ou https/);
+});
+
+test('rejeita credenciais embutidas na URL de proveniência', () => {
+  assert.throws(() => parseOfficialRankingImport({
+    contestId: 'contest-1',
+    positionId: 'position-1',
+    sourceUrl: 'https://collector:secret@example.gov.br/resultado.pdf',
+    rows: [{ candidateKey: 'candidate-1', score: 82.5 }],
+  }), /sourceUrl não pode conter credenciais embutidas/);
+});
+
 test('rejeita importação sem cargo porque o estimador é segmentado por posição', () => {
   assert.throws(() => parseOfficialRankingImport({
     contestId: 'contest-1',
