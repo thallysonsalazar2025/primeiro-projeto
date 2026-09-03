@@ -33,7 +33,8 @@ export function SimulationBuilder() {
   const [area, setArea] = useState('');
   const [positionId, setPositionId] = useState('');
   const [subjectId, setSubjectId] = useState('');
-  const [topicId, setTopicId] = useState('');
+  const [rootTopicId, setRootTopicId] = useState('');
+  const [subtopicId, setSubtopicId] = useState('');
   const [quantity, setQuantity] = useState(10);
   const [targetScore, setTargetScore] = useState('');
 
@@ -70,13 +71,14 @@ export function SimulationBuilder() {
     () => (area ? positions.filter((position) => position.area?.trim() === area) : positions),
     [area, positions],
   );
-  const topics = useMemo(() => {
-    const roots = catalog?.subjects.find((subject) => subject.id === subjectId)?.topics ?? [];
-    return roots.flatMap((topic) => [
-      { id: topic.id, name: topic.name },
-      ...topic.children.map((child) => ({ id: child.id, name: `${topic.name} › ${child.name}` })),
-    ]);
-  }, [catalog, subjectId]);
+  const rootTopics = useMemo(
+    () => catalog?.subjects.find((subject) => subject.id === subjectId)?.topics ?? [],
+    [catalog, subjectId],
+  );
+  const subtopics = useMemo(
+    () => rootTopics.find((topic) => topic.id === rootTopicId)?.children ?? [],
+    [rootTopicId, rootTopics],
+  );
 
   async function savePreparationTarget() {
     if (!contestId || !positionId) {
@@ -113,6 +115,7 @@ export function SimulationBuilder() {
     setError('');
     setCreating(true);
     try {
+      const topicId = subtopicId || rootTopicId;
       const response = await fetch('/api/simulations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -151,8 +154,9 @@ export function SimulationBuilder() {
         <Select label="Concurso" value={contestId} onChange={(value) => { setContestId(value); setArea(''); setPositionId(''); setTargetMessage(''); }} options={catalog?.contests.map((item) => ({ value: item.id, label: `${item.name}${item.year ? ` · ${item.year}` : ''}` })) ?? []} />
         <Select label="Área" value={area} onChange={(value) => { setArea(value); setPositionId(''); setTargetMessage(''); }} disabled={!contestId || areas.length === 0} options={areas.map((item) => ({ value: item, label: item }))} />
         <Select label="Cargo" value={positionId} onChange={(value) => { setPositionId(value); setTargetMessage(''); }} disabled={!contestId} options={filteredPositions.map((item) => ({ value: item.id, label: `${item.name}${item.area ? ` · ${item.area}` : ''}` }))} />
-        <Select label="Disciplina" value={subjectId} onChange={(value) => { setSubjectId(value); setTopicId(''); }} options={catalog?.subjects.map((item) => ({ value: item.id, label: item.name })) ?? []} />
-        <Select label="Assunto" value={topicId} onChange={setTopicId} disabled={!subjectId} options={topics.map((item) => ({ value: item.id, label: item.name }))} />
+        <Select label="Disciplina" value={subjectId} onChange={(value) => { setSubjectId(value); setRootTopicId(''); setSubtopicId(''); }} options={catalog?.subjects.map((item) => ({ value: item.id, label: item.name })) ?? []} />
+        <Select label="Assunto" value={rootTopicId} onChange={(value) => { setRootTopicId(value); setSubtopicId(''); }} disabled={!subjectId} options={rootTopics.map((item) => ({ value: item.id, label: item.name }))} />
+        <Select label="Subassunto" value={subtopicId} onChange={setSubtopicId} disabled={!rootTopicId || subtopics.length === 0} options={subtopics.map((item) => ({ value: item.id, label: item.name }))} />
         <label style={fieldStyle}>
           <span style={labelStyle}>Quantidade</span>
           <input type="number" min={1} max={100} step={1} value={quantity} onChange={(event) => setQuantity(Math.max(1, Math.min(100, Math.trunc(Number(event.target.value) || 1))))} style={inputStyle} />
