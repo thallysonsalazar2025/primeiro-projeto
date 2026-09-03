@@ -82,6 +82,9 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
   if (!['http:', 'https:'].includes(parsedSource.protocol)) {
     throw new Error('source.url deve usar http ou https');
   }
+  if (parsedSource.username || parsedSource.password) {
+    throw new Error('source.url não pode conter credenciais embutidas');
+  }
 
   if (batch.questions.length === 0) throw new Error('questions deve conter ao menos uma questão');
 
