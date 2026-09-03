@@ -10,6 +10,8 @@ export type IngestionReport = {
     inputSha256: string;
     sourceType: string;
     sourceUrl: string;
+    boardAcronym: string;
+    examId: string;
     examTitle: string;
     examYear: number;
   };
