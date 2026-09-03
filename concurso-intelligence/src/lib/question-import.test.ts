@@ -25,6 +25,20 @@ test('accepts a valid official question batch', () => {
   assert.equal(validateQuestionImportBatch(batch), batch);
 });
 
+test('accepts a valid SHA-256 integrity hash for the source exam', () => {
+  const batch = validBatch();
+  batch.exam.sourceSha256 = 'A'.repeat(64);
+  assert.equal(validateQuestionImportBatch(batch), batch);
+});
+
+test('rejects malformed SHA-256 integrity metadata before persistence', () => {
+  for (const sourceSha256 of ['abc123', 'g'.repeat(64), 'a'.repeat(63), 'a'.repeat(65)]) {
+    const batch = validBatch();
+    batch.exam.sourceSha256 = sourceSha256;
+    assert.throws(() => validateQuestionImportBatch(batch), /SHA-256 hexadecimal de 64 caracteres/);
+  }
+});
+
 test('rejects duplicate choice labels case-insensitively', () => {
   const batch = validBatch();
   batch.questions[0].choices[1].label = 'a';
