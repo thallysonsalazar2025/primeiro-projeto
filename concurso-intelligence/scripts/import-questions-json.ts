@@ -267,6 +267,7 @@ async function main() {
   }
 
   const report: IngestionReport = {
+    schemaVersion: 1,
     created,
     updated,
     duplicates,
