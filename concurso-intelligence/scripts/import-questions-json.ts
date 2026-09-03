@@ -3,6 +3,7 @@ import { open, readFile, writeFile } from 'node:fs/promises';
 import { AnswerKeyKind, Prisma, PrismaClient, QuestionStatus, SourceType } from '@prisma/client';
 import { serializeIngestionReport, type IngestionReport } from '../src/lib/ingestion-report.ts';
 import { questionFingerprint } from '../src/lib/question-fingerprint.ts';
+import { sanitizeReportSourceUrl } from '../src/lib/report-source-url.ts';
 import {
   validateQuestionImportBatch,
   type QuestionImportBatch,
@@ -42,11 +43,6 @@ async function validateReportDestination(reportPath: string | undefined) {
 
   const handle = await open(reportPath, 'a');
   await handle.close();
-}
-
-function sanitizeReportSourceUrl(sourceUrl: string) {
-  const parsed = new URL(sourceUrl);
-  return `${parsed.origin}${parsed.pathname}`;
 }
 
 async function main() {
