@@ -113,6 +113,31 @@ npm run db:migrate
 npm run dev
 ```
 
+## Preview público sob demanda
+
+A V2 pode ser exposta temporariamente sem abrir portas no roteador usando o profile `tunnel` do Docker Compose. O profile sobe um Cloudflare Quick Tunnel somente quando solicitado; o Simulado DATAPREV legado continua separado e não é publicado por esse serviço.
+
+1. Crie `.env` com um `SESSION_SECRET` aleatório de pelo menos 32 caracteres.
+2. Suba aplicação, PostgreSQL e tunnel:
+
+```bash
+docker compose --profile tunnel up -d --build
+```
+
+3. Consulte a URL HTTPS temporária emitida pelo `cloudflared`:
+
+```bash
+docker compose logs tunnel
+```
+
+Procure pelo endereço `https://*.trycloudflare.com`. A URL muda quando o tunnel é recriado e deve ser tratada apenas como preview de teste. Para encerrar a exposição pública:
+
+```bash
+docker compose --profile tunnel down
+```
+
+O tunnel só encaminha tráfego para o serviço `app` dentro da rede do Compose. Ele não publica a porta do PostgreSQL nem substitui o fluxo de deploy definitivo. Para um beta persistente, prefira um named tunnel com controle de acesso ou hospedagem dedicada.
+
 ## Próximas entregas
 
 1. filtros reais banca/concurso/cargo/disciplina/assunto;
