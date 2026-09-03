@@ -44,6 +44,11 @@ async function validateReportDestination(reportPath: string | undefined) {
   await handle.close();
 }
 
+function sanitizeReportSourceUrl(sourceUrl: string) {
+  const parsed = new URL(sourceUrl);
+  return `${parsed.origin}${parsed.pathname}`;
+}
+
 async function main() {
   const inputPath = process.argv[2];
   if (!inputPath) {
@@ -58,8 +63,9 @@ async function main() {
 
   await validateReportDestination(reportPath);
 
-  const raw = await readFile(inputPath, 'utf8');
-  const inputSha256 = createHash('sha256').update(raw, 'utf8').digest('hex');
+  const inputBytes = await readFile(inputPath);
+  const inputSha256 = createHash('sha256').update(inputBytes).digest('hex');
+  const raw = inputBytes.toString('utf8');
   const batch = validateQuestionImportBatch(JSON.parse(raw) as QuestionImportBatch);
   const verifiedAt = new Date();
 
@@ -274,10 +280,12 @@ async function main() {
     rejected: 0,
     verified: batch.questions.length,
     batch: {
-      generatedAt: verifiedAt.toISOString(),
+      generatedAt: new Date().toISOString(),
       inputSha256,
       sourceType: batch.source.type,
-      sourceUrl: batch.source.url,
+      sourceUrl: sanitizeReportSourceUrl(batch.source.url),
+      boardAcronym: board.acronym,
+      examId: exam.id,
       examTitle: batch.exam.title.trim(),
       examYear: batch.exam.year,
     },
