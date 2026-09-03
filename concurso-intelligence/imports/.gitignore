@@ -1,2 +1,6 @@
 *
+!questions/
+!rankings/
+!questions/.gitkeep
+!rankings/.gitkeep
 !.gitignore
