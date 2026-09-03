@@ -36,7 +36,7 @@ test('rejeita credenciais embutidas na URL de proveniência', () => {
 });
 
 test('rejeita parâmetros sensíveis na URL de proveniência', () => {
-  for (const key of ['token', 'API_KEY', 'client_secret', 'clientSecret', 'X-Amz-Signature']) {
+  for (const key of ['token', 'API_KEY', 'client_secret', 'clientSecret', 'clientsecret', 'CLIENTSECRET', 'X-Amz-Signature', 'xamzsignature']) {
     assert.throws(() => parseOfficialRankingImport({
       contestId: 'contest-1',
       positionId: 'position-1',
