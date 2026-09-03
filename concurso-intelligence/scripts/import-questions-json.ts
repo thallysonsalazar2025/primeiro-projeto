@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { open, readFile, writeFile } from 'node:fs/promises';
 import { AnswerKeyKind, Prisma, PrismaClient, QuestionStatus, SourceType } from '@prisma/client';
 import { serializeIngestionReport, type IngestionReport } from '../src/lib/ingestion-report.ts';
@@ -43,6 +44,11 @@ async function validateReportDestination(reportPath: string | undefined) {
   await handle.close();
 }
 
+function sanitizeReportSourceUrl(sourceUrl: string) {
+  const parsed = new URL(sourceUrl);
+  return `${parsed.origin}${parsed.pathname}`;
+}
+
 async function main() {
   const inputPath = process.argv[2];
   if (!inputPath) {
@@ -57,7 +63,9 @@ async function main() {
 
   await validateReportDestination(reportPath);
 
-  const raw = await readFile(inputPath, 'utf8');
+  const inputBytes = await readFile(inputPath);
+  const inputSha256 = createHash('sha256').update(inputBytes).digest('hex');
+  const raw = inputBytes.toString('utf8');
   const batch = validateQuestionImportBatch(JSON.parse(raw) as QuestionImportBatch);
   const verifiedAt = new Date();
 
@@ -265,11 +273,22 @@ async function main() {
   }
 
   const report: IngestionReport = {
+    schemaVersion: 1,
     created,
     updated,
     duplicates,
     rejected: 0,
     verified: batch.questions.length,
+    batch: {
+      generatedAt: new Date().toISOString(),
+      inputSha256,
+      sourceType: batch.source.type,
+      sourceUrl: sanitizeReportSourceUrl(batch.source.url),
+      boardAcronym: board.acronym,
+      examId: exam.id,
+      examTitle: batch.exam.title.trim(),
+      examYear: batch.exam.year,
+    },
   };
 
   console.log(
