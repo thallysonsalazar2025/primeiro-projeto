@@ -30,6 +30,7 @@ export function SimulationBuilder() {
   const [targetMessage, setTargetMessage] = useState('');
   const [boardId, setBoardId] = useState('');
   const [contestId, setContestId] = useState('');
+  const [area, setArea] = useState('');
   const [positionId, setPositionId] = useState('');
   const [subjectId, setSubjectId] = useState('');
   const [topicId, setTopicId] = useState('');
@@ -60,6 +61,14 @@ export function SimulationBuilder() {
   const positions = useMemo(
     () => catalog?.contests.find((contest) => contest.id === contestId)?.positions ?? [],
     [catalog, contestId],
+  );
+  const areas = useMemo(
+    () => [...new Set(positions.map((position) => position.area?.trim()).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [positions],
+  );
+  const filteredPositions = useMemo(
+    () => (area ? positions.filter((position) => position.area?.trim() === area) : positions),
+    [area, positions],
   );
   const topics = useMemo(() => {
     const roots = catalog?.subjects.find((subject) => subject.id === subjectId)?.topics ?? [];
@@ -139,8 +148,9 @@ export function SimulationBuilder() {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 12 }}>
         <Select label="Banca" value={boardId} onChange={setBoardId} options={catalog?.boards.map((item) => ({ value: item.id, label: item.acronym ? `${item.acronym} · ${item.name}` : item.name })) ?? []} />
-        <Select label="Concurso" value={contestId} onChange={(value) => { setContestId(value); setPositionId(''); setTargetMessage(''); }} options={catalog?.contests.map((item) => ({ value: item.id, label: `${item.name}${item.year ? ` · ${item.year}` : ''}` })) ?? []} />
-        <Select label="Cargo" value={positionId} onChange={(value) => { setPositionId(value); setTargetMessage(''); }} disabled={!contestId} options={positions.map((item) => ({ value: item.id, label: `${item.name}${item.area ? ` · ${item.area}` : ''}` }))} />
+        <Select label="Concurso" value={contestId} onChange={(value) => { setContestId(value); setArea(''); setPositionId(''); setTargetMessage(''); }} options={catalog?.contests.map((item) => ({ value: item.id, label: `${item.name}${item.year ? ` · ${item.year}` : ''}` })) ?? []} />
+        <Select label="Área" value={area} onChange={(value) => { setArea(value); setPositionId(''); setTargetMessage(''); }} disabled={!contestId || areas.length === 0} options={areas.map((item) => ({ value: item, label: item }))} />
+        <Select label="Cargo" value={positionId} onChange={(value) => { setPositionId(value); setTargetMessage(''); }} disabled={!contestId} options={filteredPositions.map((item) => ({ value: item.id, label: `${item.name}${item.area ? ` · ${item.area}` : ''}` }))} />
         <Select label="Disciplina" value={subjectId} onChange={(value) => { setSubjectId(value); setTopicId(''); }} options={catalog?.subjects.map((item) => ({ value: item.id, label: item.name })) ?? []} />
         <Select label="Assunto" value={topicId} onChange={setTopicId} disabled={!subjectId} options={topics.map((item) => ({ value: item.id, label: item.name }))} />
         <label style={fieldStyle}>
