@@ -13,6 +13,29 @@ export const IMPORTED_QUESTION_STATUSES = [
   'REVIEW_REQUIRED',
 ] as const;
 
+const SENSITIVE_SOURCE_QUERY_KEYS = new Set([
+  'access_token',
+  'apikey',
+  'api_key',
+  'auth',
+  'authorization',
+  'key',
+  'password',
+  'secret',
+  'signature',
+  'token',
+]);
+
+const SENSITIVE_SOURCE_QUERY_KEY_PARTS = new Set([
+  'auth',
+  'authorization',
+  'key',
+  'password',
+  'secret',
+  'signature',
+  'token',
+]);
+
 export type QuestionSourceType = (typeof QUESTION_SOURCE_TYPES)[number];
 export type ImportedQuestionStatus = (typeof IMPORTED_QUESTION_STATUSES)[number];
 
@@ -60,6 +83,19 @@ function requireNonBlank(value: string, field: string) {
   if (!value.trim()) throw new Error(`${field} não pode ser vazio`);
 }
 
+function isSensitiveSourceQueryKey(key: string) {
+  const normalized = key.toLowerCase();
+  if (SENSITIVE_SOURCE_QUERY_KEYS.has(normalized)) return true;
+
+  const parts = key
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+
+  return parts.some((part) => SENSITIVE_SOURCE_QUERY_KEY_PARTS.has(part));
+}
+
 export function validateQuestionImportBatch(batch: QuestionImportBatch) {
   requireNonBlank(batch.board.acronym, 'board.acronym');
   requireNonBlank(batch.board.name, 'board.name');
@@ -84,6 +120,11 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
   }
   if (parsedSource.username || parsedSource.password) {
     throw new Error('source.url não pode conter credenciais embutidas');
+  }
+  for (const key of parsedSource.searchParams.keys()) {
+    if (isSensitiveSourceQueryKey(key)) {
+      throw new Error(`source.url não pode conter parâmetro sensível: ${key}`);
+    }
   }
 
   if (batch.questions.length === 0) throw new Error('questions deve conter ao menos uma questão');
