@@ -119,6 +119,7 @@ test('returns catalog relationships and renders dependent preparation filters', 
     const positionSelect = selectByField('Cargo');
     const subjectSelect = selectByField('Disciplina');
     const topicSelect = selectByField('Assunto');
+    const subtopicSelect = selectByField('Subassunto');
 
     await boardSelect.selectOption({ label: `${board.acronym} · ${board.name}` });
     await expect(boardSelect).not.toHaveValue('');
@@ -141,12 +142,20 @@ test('returns catalog relationships and renders dependent preparation filters', 
     await expect(positionSelect.locator('option', { hasText: `${otherPosition.name} · Administrativa` })).toHaveCount(1);
 
     await expect(topicSelect).toBeDisabled();
+    await expect(subtopicSelect).toBeDisabled();
     await subjectSelect.selectOption({ label: subject.name });
     await expect(topicSelect).toBeEnabled();
     await topicSelect.selectOption({ label: rootTopic.name });
     await expect(topicSelect).not.toHaveValue('');
-    await topicSelect.selectOption({ label: `${rootTopic.name} › ${childTopic.name}` });
-    await expect(topicSelect).not.toHaveValue('');
+    await expect(subtopicSelect).toBeEnabled();
+    await subtopicSelect.selectOption({ label: childTopic.name });
+    await expect(subtopicSelect).not.toHaveValue('');
+
+    await subjectSelect.selectOption({ label: 'Todos' });
+    await expect(topicSelect).toHaveValue('');
+    await expect(subtopicSelect).toHaveValue('');
+    await expect(topicSelect).toBeDisabled();
+    await expect(subtopicSelect).toBeDisabled();
   } finally {
     const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
     if (user) await prisma.user.delete({ where: { id: user.id } });
