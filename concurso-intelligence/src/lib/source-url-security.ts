@@ -50,3 +50,28 @@ export function isSensitiveSourceQueryKey(key: string) {
 
   return parts.some((part) => SENSITIVE_SOURCE_QUERY_KEY_PARTS.has(part));
 }
+
+export function validatePublicHttpUrl(value: string, field: string) {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${field} deve ser uma URL válida`);
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error(`${field} deve usar http ou https`);
+  }
+
+  if (parsed.username || parsed.password) {
+    throw new Error(`${field} não pode conter credenciais embutidas`);
+  }
+
+  for (const key of parsed.searchParams.keys()) {
+    if (isSensitiveSourceQueryKey(key)) {
+      throw new Error(`${field} não pode conter parâmetro sensível: ${key}`);
+    }
+  }
+
+  return parsed;
+}
