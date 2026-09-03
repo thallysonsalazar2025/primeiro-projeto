@@ -53,6 +53,16 @@ services:
       retries: 12
       start_period: 20s
 
+  tunnel:
+    image: cloudflare/cloudflared:2026.7.3
+    container_name: concurso-intelligence-tunnel
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    depends_on:
+      app:
+        condition: service_healthy
+    command: ["tunnel", "--no-autoupdate", "--url", "http://app:3000"]
+
   backup:
     image: postgres:16-alpine
     container_name: concurso-intelligence-backup
