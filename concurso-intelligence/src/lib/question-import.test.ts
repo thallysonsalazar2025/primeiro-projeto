@@ -63,3 +63,9 @@ test('rejects non-http provenance URLs', () => {
   batch.source.url = 'file:///tmp/prova.pdf';
   assert.throws(() => validateQuestionImportBatch(batch), /http ou https/);
 });
+
+test('rejects provenance URLs with embedded credentials before persistence', () => {
+  const batch = validBatch();
+  batch.source.url = 'https://collector:secret@example.gov.br/prova.pdf';
+  assert.throws(() => validateQuestionImportBatch(batch), /credenciais embutidas/);
+});
