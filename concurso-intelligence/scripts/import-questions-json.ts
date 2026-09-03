@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { open, readFile, writeFile } from 'node:fs/promises';
 import { AnswerKeyKind, Prisma, PrismaClient, QuestionStatus, SourceType } from '@prisma/client';
 import { serializeIngestionReport, type IngestionReport } from '../src/lib/ingestion-report.ts';
@@ -58,6 +59,7 @@ async function main() {
   await validateReportDestination(reportPath);
 
   const raw = await readFile(inputPath, 'utf8');
+  const inputSha256 = createHash('sha256').update(raw, 'utf8').digest('hex');
   const batch = validateQuestionImportBatch(JSON.parse(raw) as QuestionImportBatch);
   const verifiedAt = new Date();
 
@@ -270,6 +272,14 @@ async function main() {
     duplicates,
     rejected: 0,
     verified: batch.questions.length,
+    batch: {
+      generatedAt: verifiedAt.toISOString(),
+      inputSha256,
+      sourceType: batch.source.type,
+      sourceUrl: batch.source.url,
+      examTitle: batch.exam.title.trim(),
+      examYear: batch.exam.year,
+    },
   };
 
   console.log(
