@@ -17,7 +17,8 @@
     "db:migrate": "prisma migrate dev",
     "db:import:dataprev": "node --experimental-strip-types scripts/import-dataprev.ts",
     "db:import:questions": "node --experimental-strip-types scripts/import-questions-json.ts",
-    "db:import:ranking": "node --experimental-strip-types scripts/import-official-ranking-json.ts"
+    "db:import:ranking": "node --experimental-strip-types scripts/import-official-ranking-json.ts",
+    "worker:ingestion": "node --experimental-strip-types scripts/ingestion-worker.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",
