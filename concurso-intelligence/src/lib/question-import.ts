@@ -62,6 +62,26 @@ function requireNonBlank(value: string, field: string) {
   if (!value.trim()) throw new Error(`${field} não pode ser vazio`);
 }
 
+function validatePublicHttpUrl(value: string, field: string) {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${field} deve ser uma URL válida`);
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new Error(`${field} deve usar http ou https`);
+  }
+  if (parsed.username || parsed.password) {
+    throw new Error(`${field} não pode conter credenciais embutidas`);
+  }
+  for (const key of parsed.searchParams.keys()) {
+    if (isSensitiveSourceQueryKey(key)) {
+      throw new Error(`${field} não pode conter parâmetro sensível: ${key}`);
+    }
+  }
+}
+
 export function validateQuestionImportBatch(batch: QuestionImportBatch) {
   requireNonBlank(batch.board.acronym, 'board.acronym');
   requireNonBlank(batch.board.name, 'board.name');
@@ -75,22 +95,9 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
     throw new Error(`source.type inválido: ${batch.source.type}`);
   }
 
-  let parsedSource: URL;
-  try {
-    parsedSource = new URL(batch.source.url);
-  } catch {
-    throw new Error('source.url deve ser uma URL válida');
-  }
-  if (!['http:', 'https:'].includes(parsedSource.protocol)) {
-    throw new Error('source.url deve usar http ou https');
-  }
-  if (parsedSource.username || parsedSource.password) {
-    throw new Error('source.url não pode conter credenciais embutidas');
-  }
-  for (const key of parsedSource.searchParams.keys()) {
-    if (isSensitiveSourceQueryKey(key)) {
-      throw new Error(`source.url não pode conter parâmetro sensível: ${key}`);
-    }
+  validatePublicHttpUrl(batch.source.url, 'source.url');
+  if (batch.board.website?.trim()) {
+    validatePublicHttpUrl(batch.board.website.trim(), 'board.website');
   }
 
   if (batch.questions.length === 0) throw new Error('questions deve conter ao menos uma questão');
