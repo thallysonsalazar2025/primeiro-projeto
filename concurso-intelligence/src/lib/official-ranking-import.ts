@@ -3,10 +3,22 @@ import { z } from 'zod';
 export const rankingCategorySchema = z.enum(['GENERAL', 'BLACK', 'PCD', 'OTHER_QUOTA']);
 const nonBlankString = z.string().trim().min(1);
 
+const officialRankingSourceUrlSchema = z.string().url().superRefine((value, ctx) => {
+  const parsed = new URL(value);
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'sourceUrl deve usar http ou https' });
+  }
+
+  if (parsed.username || parsed.password) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'sourceUrl não pode conter credenciais embutidas' });
+  }
+});
+
 export const officialRankingImportSchema = z.object({
   contestId: nonBlankString,
   positionId: nonBlankString,
-  sourceUrl: z.string().url(),
+  sourceUrl: officialRankingSourceUrlSchema,
   sourcePage: z.number().int().positive().nullable().optional(),
   rows: z.array(z.object({
     candidateKey: nonBlankString,
