@@ -35,6 +35,26 @@ test('rejeita credenciais embutidas na URL de proveniência', () => {
   }), /sourceUrl não pode conter credenciais embutidas/);
 });
 
+test('rejeita parâmetros sensíveis na URL de proveniência', () => {
+  for (const key of ['token', 'API_KEY', 'client_secret', 'clientSecret', 'clientsecret', 'CLIENTSECRET', 'X-Amz-Signature', 'xamzsignature']) {
+    assert.throws(() => parseOfficialRankingImport({
+      contestId: 'contest-1',
+      positionId: 'position-1',
+      sourceUrl: `https://example.gov.br/resultado.pdf?${key}=secret-value`,
+      rows: [{ candidateKey: 'candidate-1', score: 82.5 }],
+    }), /sourceUrl não pode conter parâmetro sensível/);
+  }
+});
+
+test('permite parâmetros funcionais não sensíveis na URL de proveniência', () => {
+  assert.doesNotThrow(() => parseOfficialRankingImport({
+    contestId: 'contest-1',
+    positionId: 'position-1',
+    sourceUrl: 'https://example.gov.br/resultado.pdf?edicao=2026&cargo=analista',
+    rows: [{ candidateKey: 'candidate-1', score: 82.5 }],
+  }));
+});
+
 test('rejeita importação sem cargo porque o estimador é segmentado por posição', () => {
   assert.throws(() => parseOfficialRankingImport({
     contestId: 'contest-1',

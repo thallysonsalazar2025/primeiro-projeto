@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isSensitiveSourceQueryKey } from './source-url-security.ts';
 
 export const rankingCategorySchema = z.enum(['GENERAL', 'BLACK', 'PCD', 'OTHER_QUOTA']);
 const nonBlankString = z.string().trim().min(1);
@@ -12,6 +13,12 @@ const officialRankingSourceUrlSchema = z.string().url().superRefine((value, ctx)
 
   if (parsed.username || parsed.password) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'sourceUrl não pode conter credenciais embutidas' });
+  }
+
+  for (const key of parsed.searchParams.keys()) {
+    if (isSensitiveSourceQueryKey(key)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `sourceUrl não pode conter parâmetro sensível: ${key}` });
+    }
   }
 });
 
