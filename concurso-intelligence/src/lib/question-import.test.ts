@@ -91,3 +91,21 @@ test('allows non-sensitive provenance query parameters', () => {
   batch.source.url = 'https://example.gov.br/prova.pdf?edicao=2026&cargo=analista';
   assert.equal(validateQuestionImportBatch(batch), batch);
 });
+
+test('validates optional board website before persistence', () => {
+  const unsupported = validBatch();
+  unsupported.board.website = 'ftp://example.gov.br';
+  assert.throws(() => validateQuestionImportBatch(unsupported), /board\.website deve usar http ou https/);
+
+  const credentials = validBatch();
+  credentials.board.website = 'https://user:secret@example.gov.br';
+  assert.throws(() => validateQuestionImportBatch(credentials), /board\.website não pode conter credenciais embutidas/);
+
+  const sensitiveQuery = validBatch();
+  sensitiveQuery.board.website = 'https://example.gov.br?clientSecret=secret-value';
+  assert.throws(() => validateQuestionImportBatch(sensitiveQuery), /board\.website não pode conter parâmetro sensível/);
+
+  const valid = validBatch();
+  valid.board.website = 'https://example.gov.br/concursos?ano=2026';
+  assert.equal(validateQuestionImportBatch(valid), valid);
+});
