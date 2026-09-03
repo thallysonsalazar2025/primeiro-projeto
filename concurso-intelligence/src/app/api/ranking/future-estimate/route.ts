@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth';
 import { estimateForNewContest } from '@/lib/ranking';
 
+const MAX_BODY_BYTES = 1_000_000;
+
 const rankingRowSchema = z.object({
   score: z.number().finite().min(0).max(100),
   rank: z.number().int().positive().nullable().optional(),
@@ -18,7 +20,7 @@ const historicalContestSchema = z.object({
   difficultySimilarity: z.number().finite().min(0).max(1).optional(),
   vacancySimilarity: z.number().finite().min(0).max(1).optional(),
   weight: z.number().finite().positive().optional(),
-  rows: z.array(rankingRowSchema).min(20).max(20_000),
+  rows: z.array(rankingRowSchema).min(20).max(5_000),
 });
 
 const requestSchema = z.object({
@@ -26,16 +28,25 @@ const requestSchema = z.object({
   expectedCandidates: z.number().int().positive().max(10_000_000),
   targetBoard: z.string().trim().min(1).max(128),
   targetCargoFamily: z.string().trim().min(1).max(128).optional(),
-  history: z.array(historicalContestSchema).min(1).max(50),
+  history: z.array(historicalContestSchema).min(1).max(20),
 });
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const declaredLength = Number(request.headers.get('content-length') ?? 0);
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+  }
+
   let body: unknown;
   try {
-    body = await request.json();
+    const rawBody = await request.text();
+    if (Buffer.byteLength(rawBody, 'utf8') > MAX_BODY_BYTES) {
+      return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+    }
+    body = JSON.parse(rawBody);
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
