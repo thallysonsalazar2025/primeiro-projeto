@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { serializeIngestionReport } from './ingestion-report.ts';
 
-test('serializes ingestion report as stable machine-readable JSON with batch provenance', () => {
+test('serializes versioned ingestion report with batch provenance', () => {
   const serialized = serializeIngestionReport({
+    schemaVersion: 1,
     created: 3,
     updated: 2,
     duplicates: 1,
@@ -20,6 +21,7 @@ test('serializes ingestion report as stable machine-readable JSON with batch pro
   });
 
   assert.deepEqual(JSON.parse(serialized), {
+    schemaVersion: 1,
     created: 3,
     updated: 2,
     duplicates: 1,
