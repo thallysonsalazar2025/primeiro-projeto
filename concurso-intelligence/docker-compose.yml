@@ -58,7 +58,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: concurso-intelligence-worker
-    restart: unless-stopped
+    restart: on-failure
     profiles: ["worker"]
     depends_on:
       postgres:
