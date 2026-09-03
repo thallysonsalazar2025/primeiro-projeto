@@ -13,6 +13,19 @@ export const IMPORTED_QUESTION_STATUSES = [
   'REVIEW_REQUIRED',
 ] as const;
 
+const SENSITIVE_SOURCE_QUERY_KEYS = new Set([
+  'access_token',
+  'apikey',
+  'api_key',
+  'auth',
+  'authorization',
+  'key',
+  'password',
+  'secret',
+  'signature',
+  'token',
+]);
+
 export type QuestionSourceType = (typeof QUESTION_SOURCE_TYPES)[number];
 export type ImportedQuestionStatus = (typeof IMPORTED_QUESTION_STATUSES)[number];
 
@@ -84,6 +97,11 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
   }
   if (parsedSource.username || parsedSource.password) {
     throw new Error('source.url não pode conter credenciais embutidas');
+  }
+  for (const key of parsedSource.searchParams.keys()) {
+    if (SENSITIVE_SOURCE_QUERY_KEYS.has(key.toLowerCase())) {
+      throw new Error(`source.url não pode conter parâmetro sensível: ${key}`);
+    }
   }
 
   if (batch.questions.length === 0) throw new Error('questions deve conter ao menos uma questão');
