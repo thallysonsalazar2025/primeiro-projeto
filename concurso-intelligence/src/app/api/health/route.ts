@@ -5,13 +5,20 @@ import { structuredLog } from '@/lib/structured-log';
 
 export const dynamic = 'force-dynamic';
 
+const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
+
 function uptimeSeconds() {
   return Math.max(0, Math.floor(process.uptime()));
 }
 
+function resolveRequestId(request: Request) {
+  const candidate = request.headers.get('x-request-id')?.trim();
+  return candidate && REQUEST_ID_PATTERN.test(candidate) ? candidate : randomUUID();
+}
+
 export async function GET(request: Request) {
   const checkedAt = new Date().toISOString();
-  const requestId = request.headers.get('x-request-id')?.trim().slice(0, 128) || randomUUID();
+  const requestId = resolveRequestId(request);
   const databaseStartedAt = performance.now();
 
   try {
