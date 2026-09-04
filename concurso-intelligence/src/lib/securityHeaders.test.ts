@@ -23,6 +23,7 @@ test('security headers publish CSP together with existing hardening headers', ()
   const headers = new Map(securityHeaders.map(({ key, value }) => [key, value]));
 
   assert.equal(headers.get('Content-Security-Policy'), contentSecurityPolicy);
+  assert.equal(headers.get('Strict-Transport-Security'), 'max-age=15552000');
   assert.equal(headers.get('X-Content-Type-Options'), 'nosniff');
   assert.equal(headers.get('X-Frame-Options'), 'DENY');
   assert.equal(headers.get('Referrer-Policy'), 'strict-origin-when-cross-origin');
