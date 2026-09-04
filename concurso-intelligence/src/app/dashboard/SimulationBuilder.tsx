@@ -20,6 +20,8 @@ type Catalog = {
   }>;
 };
 
+type SimulationMode = 'RANDOM' | 'ORIGINAL_ORDER';
+
 export function SimulationBuilder() {
   const router = useRouter();
   const [catalog, setCatalog] = useState<Catalog | null>(null);
@@ -36,6 +38,7 @@ export function SimulationBuilder() {
   const [rootTopicId, setRootTopicId] = useState('');
   const [subtopicId, setSubtopicId] = useState('');
   const [quantity, setQuantity] = useState(10);
+  const [mode, setMode] = useState<SimulationMode>('RANDOM');
   const [targetScore, setTargetScore] = useState('');
 
   useEffect(() => {
@@ -126,6 +129,7 @@ export function SimulationBuilder() {
           ...(subjectId ? { subjectId } : {}),
           ...(topicId ? { topicId } : {}),
           quantity,
+          mode,
         }),
       });
       const data = await response.json();
@@ -157,6 +161,13 @@ export function SimulationBuilder() {
         <Select label="Disciplina" value={subjectId} onChange={(value) => { setSubjectId(value); setRootTopicId(''); setSubtopicId(''); }} options={catalog?.subjects.map((item) => ({ value: item.id, label: item.name })) ?? []} />
         <Select label="Assunto" value={rootTopicId} onChange={(value) => { setRootTopicId(value); setSubtopicId(''); }} disabled={!subjectId} options={rootTopics.map((item) => ({ value: item.id, label: item.name }))} />
         <Select label="Subassunto" value={subtopicId} onChange={setSubtopicId} disabled={!rootTopicId || subtopics.length === 0} options={subtopics.map((item) => ({ value: item.id, label: item.name }))} />
+        <label style={fieldStyle}>
+          <span style={labelStyle}>Modo</span>
+          <select value={mode} onChange={(event) => setMode(event.target.value as SimulationMode)} style={inputStyle}>
+            <option value="RANDOM">Aleatório</option>
+            <option value="ORIGINAL_ORDER">Ordem da prova</option>
+          </select>
+        </label>
         <label style={fieldStyle}>
           <span style={labelStyle}>Quantidade</span>
           <input type="number" min={1} max={100} step={1} value={quantity} onChange={(event) => setQuantity(Math.max(1, Math.min(100, Math.trunc(Number(event.target.value) || 1))))} style={inputStyle} />
