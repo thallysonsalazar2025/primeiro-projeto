@@ -178,17 +178,36 @@ async function main() {
 
     let saved;
     let wasCreated = false;
-    try {
-      saved = await prisma.question.create({ data: createData });
-      wasCreated = true;
-    } catch (error) {
-      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
-        throw error;
-      }
+    const existingByNumber = question.number == null
+      ? null
+      : await prisma.question.findUnique({
+          where: { examId_number: { examId: exam.id, number: question.number } },
+        });
+
+    if (existingByNumber) {
       saved = await prisma.question.update({
-        where: { contentFingerprint: fingerprint },
-        data: updateData,
+        where: { id: existingByNumber.id },
+        data: {
+          ...updateData,
+          boardId: board.id,
+          number: question.number,
+          statement: question.statement.trim(),
+          contentFingerprint: fingerprint,
+        },
       });
+    } else {
+      try {
+        saved = await prisma.question.create({ data: createData });
+        wasCreated = true;
+      } catch (error) {
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
+          throw error;
+        }
+        saved = await prisma.question.update({
+          where: { contentFingerprint: fingerprint },
+          data: updateData,
+        });
+      }
     }
 
     const currentLabels = question.choices.map((choice) => choice.label.trim().toUpperCase());
