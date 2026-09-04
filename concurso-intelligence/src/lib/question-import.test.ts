@@ -58,6 +58,32 @@ test('rejects oversized batches before the worker reaches persistence', () => {
   );
 });
 
+test('rejects duplicate original question numbers within the same exam batch', () => {
+  const batch = validBatch();
+  batch.questions.push({
+    number: 1,
+    statement: 'Outro enunciado para a mesma numeração oficial',
+    choices: [
+      { label: 'A', text: 'Opção A', isCorrect: false },
+      { label: 'B', text: 'Opção B', isCorrect: true },
+    ],
+  });
+  assert.throws(() => validateQuestionImportBatch(batch), /number duplicado na prova: 1/);
+});
+
+test('allows multiple unnumbered questions because no original identity was provided', () => {
+  const batch = validBatch();
+  batch.questions[0].number = null;
+  batch.questions.push({
+    statement: 'Outra questão sem numeração original',
+    choices: [
+      { label: 'A', text: 'Opção A', isCorrect: false },
+      { label: 'B', text: 'Opção B', isCorrect: true },
+    ],
+  });
+  assert.equal(validateQuestionImportBatch(batch), batch);
+});
+
 test('accepts a valid SHA-256 integrity hash for the source exam', () => {
   const batch = validBatch();
   batch.exam.sourceSha256 = 'A'.repeat(64);

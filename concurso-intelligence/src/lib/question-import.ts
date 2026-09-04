@@ -95,11 +95,18 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
     throw new Error(`questions excede o limite de ${MAX_QUESTION_IMPORT_BATCH_SIZE} questões por lote`);
   }
 
+  const seenQuestionNumbers = new Set<number>();
   for (const [index, question] of batch.questions.entries()) {
     const prefix = `questions[${index}]`;
     requireNonBlank(question.statement, `${prefix}.statement`);
     if (question.number != null && (!Number.isInteger(question.number) || question.number <= 0)) {
       throw new Error(`${prefix}.number deve ser inteiro positivo`);
+    }
+    if (question.number != null) {
+      if (seenQuestionNumbers.has(question.number)) {
+        throw new Error(`${prefix}.number duplicado na prova: ${question.number}`);
+      }
+      seenQuestionNumbers.add(question.number);
     }
     if (question.sourcePage != null && (!Number.isInteger(question.sourcePage) || question.sourcePage <= 0)) {
       throw new Error(`${prefix}.sourcePage deve ser inteiro positivo`);
