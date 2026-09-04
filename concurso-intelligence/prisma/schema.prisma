@@ -157,7 +157,7 @@ model Question {
   provenance         QuestionProvenance[]
 
   @@index([boardId, subjectId, topicId])
-  @@index([examId, number])
+  @@unique([examId, number])
 }
 
 model QuestionChoice {
