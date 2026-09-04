@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { selectSimulationQuestions, simulationModes } from "@/lib/simulation-mode";
 
 const createSimulationSchema = z.object({
   boardId: z.string().min(1).optional(),
@@ -11,16 +12,8 @@ const createSimulationSchema = z.object({
   subjectId: z.string().min(1).optional(),
   topicId: z.string().min(1).optional(),
   quantity: z.number().int().min(1).max(100).default(10),
+  mode: z.enum(simulationModes).default("RANDOM"),
 });
-
-function shuffle<T>(items: T[]) {
-  const copy = [...items];
-  for (let index = copy.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
-    [copy[index], copy[swapIndex]] = [copy[swapIndex], copy[index]];
-  }
-  return copy;
-}
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -36,7 +29,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { boardId, contestId, positionId, subjectId, topicId, quantity } = parsed.data;
+  const { boardId, contestId, positionId, subjectId, topicId, quantity, mode } = parsed.data;
 
   const candidates = await prisma.question.findMany({
     where: {
@@ -53,7 +46,17 @@ export async function POST(request: Request) {
           }
         : {}),
     },
-    take: Math.max(quantity * 5, 100),
+    ...(mode === "ORIGINAL_ORDER"
+      ? {
+          orderBy: [
+            { exam: { year: "asc" as const } },
+            { examId: "asc" as const },
+            { number: "asc" as const },
+            { id: "asc" as const },
+          ],
+          take: quantity,
+        }
+      : { take: Math.max(quantity * 5, 100) }),
     select: {
       id: true,
       number: true,
@@ -83,7 +86,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No questions found for the selected filters" }, { status: 404 });
   }
 
-  const questions = shuffle(candidates).slice(0, quantity);
+  const questions = selectSimulationQuestions(candidates, quantity, mode);
   const positionName = questions.find((question) => question.exam.position)?.exam.position?.name ?? null;
 
   const session = await prisma.studySession.create({
@@ -103,6 +106,7 @@ export async function POST(request: Request) {
         startedAt: session.startedAt,
         requestedQuantity: quantity,
         questionCount: questions.length,
+        mode,
       },
       questions,
     },
