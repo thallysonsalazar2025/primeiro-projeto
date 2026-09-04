@@ -46,7 +46,17 @@ export async function POST(request: Request) {
           }
         : {}),
     },
-    take: Math.max(quantity * 5, 100),
+    ...(mode === "ORIGINAL_ORDER"
+      ? {
+          orderBy: [
+            { exam: { year: "asc" as const } },
+            { examId: "asc" as const },
+            { number: "asc" as const },
+            { id: "asc" as const },
+          ],
+          take: quantity,
+        }
+      : { take: Math.max(quantity * 5, 100) }),
     select: {
       id: true,
       number: true,
