@@ -152,9 +152,11 @@ export function estimateForNewContest(
   }
 
   const weightedContests = usable.map((contest) => {
-    const boardWeight = normalizeComparableText(contest.board) === normalizedTargetBoard ? 1 : 0.45;
-    const cargoWeight = normalizedTargetCargoFamily
-      && normalizeComparableText(contest.cargoFamily) === normalizedTargetCargoFamily ? 1 : 0.7;
+    const boardMatches = normalizeComparableText(contest.board) === normalizedTargetBoard;
+    const cargoMatches = normalizedTargetCargoFamily !== undefined
+      && normalizeComparableText(contest.cargoFamily) === normalizedTargetCargoFamily;
+    const boardWeight = boardMatches ? 1 : 0.45;
+    const cargoWeight = normalizedTargetCargoFamily && !cargoMatches ? 0.7 : 1;
     const similarityWeight = clamp(contest.subjectSimilarity, 0.2, 1);
     const difficultyWeight = clamp(contest.difficultySimilarity ?? 0.7, 0.2, 1);
     const vacancyWeight = clamp(contest.vacancySimilarity ?? 0.7, 0.2, 1);
@@ -165,10 +167,17 @@ export function estimateForNewContest(
       * difficultyWeight
       * vacancyWeight;
 
+    const strongComparable = boardMatches
+      && cargoMatches
+      && contest.subjectSimilarity >= 0.6
+      && (contest.difficultySimilarity ?? 0.7) >= 0.5
+      && (contest.vacancySimilarity ?? 0.7) >= 0.5;
+
     return {
       contest,
       percentile: percentileAgainstScores(simulatedScorePercent, contest.rows),
       rawWeight,
+      strongComparable,
     };
   });
 
@@ -180,12 +189,18 @@ export function estimateForNewContest(
   let weightedPercentile = 0;
   let totalWeight = 0;
   let sampleSize = 0;
+  let strongComparableCount = 0;
+  let strongComparableEffectiveSample = 0;
 
-  for (const { contest, percentile, rawWeight } of weightedContests) {
+  for (const { contest, percentile, rawWeight, strongComparable } of weightedContests) {
     const normalizedWeight = rawWeight / maxRawWeight;
     weightedPercentile += percentile * normalizedWeight;
     totalWeight += normalizedWeight;
     sampleSize += contest.rows.length;
+    if (strongComparable) {
+      strongComparableCount += 1;
+      strongComparableEffectiveSample += contest.rows.length * normalizedWeight;
+    }
   }
 
   const percentile = totalWeight ? weightedPercentile / totalWeight : 0;
@@ -204,7 +219,11 @@ export function estimateForNewContest(
     percentile,
     lowerRank: Math.max(1, estimatedRank - margin),
     upperRank: Math.min(expectedCandidates, estimatedRank + margin),
-    confidence: effectiveHistory >= 5 && sampleSize >= 500 ? 'high' : effectiveHistory >= 3 ? 'medium' : 'low',
+    confidence: strongComparableCount >= 5 && strongComparableEffectiveSample >= 500
+      ? 'high'
+      : effectiveHistory >= 3
+        ? 'medium'
+        : 'low',
     method: 'historical-board-model',
     sampleSize,
   };
