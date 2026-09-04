@@ -7,7 +7,7 @@ WITH ranked_duplicates AS (
     id,
     ROW_NUMBER() OVER (
       PARTITION BY "examId", "number"
-      ORDER BY "createdAt" ASC, id ASC
+      ORDER BY "firstSeenAt" ASC, id ASC
     ) AS duplicate_rank
   FROM "Question"
   WHERE "number" IS NOT NULL
