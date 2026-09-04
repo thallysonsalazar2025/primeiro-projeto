@@ -153,8 +153,8 @@ export function estimateForNewContest(
 
   const weightedContests = usable.map((contest) => {
     const boardMatches = normalizeComparableText(contest.board) === normalizedTargetBoard;
-    const cargoMatches = !normalizedTargetCargoFamily
-      || normalizeComparableText(contest.cargoFamily) === normalizedTargetCargoFamily;
+    const cargoMatches = normalizedTargetCargoFamily !== undefined
+      && normalizeComparableText(contest.cargoFamily) === normalizedTargetCargoFamily;
     const boardWeight = boardMatches ? 1 : 0.45;
     const cargoWeight = normalizedTargetCargoFamily && !cargoMatches ? 0.7 : 1;
     const similarityWeight = clamp(contest.subjectSimilarity, 0.2, 1);
@@ -189,12 +189,18 @@ export function estimateForNewContest(
   let weightedPercentile = 0;
   let totalWeight = 0;
   let sampleSize = 0;
+  let strongComparableCount = 0;
+  let strongComparableEffectiveSample = 0;
 
-  for (const { contest, percentile, rawWeight } of weightedContests) {
+  for (const { contest, percentile, rawWeight, strongComparable } of weightedContests) {
     const normalizedWeight = rawWeight / maxRawWeight;
     weightedPercentile += percentile * normalizedWeight;
     totalWeight += normalizedWeight;
     sampleSize += contest.rows.length;
+    if (strongComparable) {
+      strongComparableCount += 1;
+      strongComparableEffectiveSample += contest.rows.length * normalizedWeight;
+    }
   }
 
   const percentile = totalWeight ? weightedPercentile / totalWeight : 0;
@@ -205,7 +211,6 @@ export function estimateForNewContest(
   );
 
   const effectiveHistory = usable.length;
-  const strongComparableCount = weightedContests.filter(({ strongComparable }) => strongComparable).length;
   const uncertaintyRate = effectiveHistory >= 5 ? 0.08 : effectiveHistory >= 3 ? 0.14 : 0.22;
   const margin = Math.max(3, Math.round(expectedCandidates * uncertaintyRate));
 
@@ -214,7 +219,7 @@ export function estimateForNewContest(
     percentile,
     lowerRank: Math.max(1, estimatedRank - margin),
     upperRank: Math.min(expectedCandidates, estimatedRank + margin),
-    confidence: strongComparableCount >= 5 && sampleSize >= 500
+    confidence: strongComparableCount >= 5 && strongComparableEffectiveSample >= 500
       ? 'high'
       : effectiveHistory >= 3
         ? 'medium'
