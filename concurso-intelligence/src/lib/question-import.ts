@@ -15,6 +15,8 @@ export const IMPORTED_QUESTION_STATUSES = [
   'REVIEW_REQUIRED',
 ] as const;
 
+export const MAX_QUESTION_IMPORT_BATCH_SIZE = 500;
+
 export type QuestionSourceType = (typeof QUESTION_SOURCE_TYPES)[number];
 export type ImportedQuestionStatus = (typeof IMPORTED_QUESTION_STATUSES)[number];
 
@@ -89,6 +91,9 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
   }
 
   if (batch.questions.length === 0) throw new Error('questions deve conter ao menos uma questão');
+  if (batch.questions.length > MAX_QUESTION_IMPORT_BATCH_SIZE) {
+    throw new Error(`questions excede o limite de ${MAX_QUESTION_IMPORT_BATCH_SIZE} questões por lote`);
+  }
 
   for (const [index, question] of batch.questions.entries()) {
     const prefix = `questions[${index}]`;
