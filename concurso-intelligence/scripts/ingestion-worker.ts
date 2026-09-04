@@ -1,10 +1,15 @@
 import { spawn } from 'node:child_process';
 import { mkdir, readdir, rename, stat, utimes } from 'node:fs/promises';
 import { basename, join } from 'node:path';
+import {
+  assertIngestionFileSize,
+  parseMaxIngestionFileBytes,
+} from '../src/lib/ingestion-file-size.ts';
 
 const inboxRoot = process.env.INGESTION_INBOX_DIR?.trim() || '/imports';
 const intervalSeconds = parsePositiveInteger(process.env.INGESTION_INTERVAL_SECONDS, 60);
 const staleClaimSeconds = parsePositiveInteger(process.env.INGESTION_STALE_CLAIM_SECONDS, 3600);
+const maxFileBytes = parseMaxIngestionFileBytes(process.env.INGESTION_MAX_FILE_BYTES);
 const oneShot = process.env.INGESTION_ONESHOT === 'true';
 
 type ImportKind = 'questions' | 'rankings';
@@ -75,6 +80,8 @@ function startClaimHeartbeat(claimedPath: string) {
 async function processClaimedFile(claimedPath: string, kind: ImportKind) {
   const heartbeat = startClaimHeartbeat(claimedPath);
   try {
+    const metadata = await stat(claimedPath);
+    assertIngestionFileSize(metadata.size, maxFileBytes);
     console.log(`[ingestion-worker] importando ${kind}: ${claimedPath}`);
     await runImporter(importers[kind], claimedPath);
     const archivedPath = await moveToBucket(claimedPath, kind, 'processed');
@@ -151,7 +158,7 @@ async function runCycle() {
 
 async function main() {
   console.log(
-    `[ingestion-worker] inbox=${inboxRoot} interval=${intervalSeconds}s staleClaim=${staleClaimSeconds}s oneShot=${oneShot}`,
+    `[ingestion-worker] inbox=${inboxRoot} interval=${intervalSeconds}s staleClaim=${staleClaimSeconds}s maxFileBytes=${maxFileBytes} oneShot=${oneShot}`,
   );
 
   do {
