@@ -152,9 +152,11 @@ export function estimateForNewContest(
   }
 
   const weightedContests = usable.map((contest) => {
-    const boardWeight = normalizeComparableText(contest.board) === normalizedTargetBoard ? 1 : 0.45;
-    const cargoWeight = normalizedTargetCargoFamily
-      && normalizeComparableText(contest.cargoFamily) === normalizedTargetCargoFamily ? 1 : 0.7;
+    const boardMatches = normalizeComparableText(contest.board) === normalizedTargetBoard;
+    const cargoMatches = !normalizedTargetCargoFamily
+      || normalizeComparableText(contest.cargoFamily) === normalizedTargetCargoFamily;
+    const boardWeight = boardMatches ? 1 : 0.45;
+    const cargoWeight = normalizedTargetCargoFamily && !cargoMatches ? 0.7 : 1;
     const similarityWeight = clamp(contest.subjectSimilarity, 0.2, 1);
     const difficultyWeight = clamp(contest.difficultySimilarity ?? 0.7, 0.2, 1);
     const vacancyWeight = clamp(contest.vacancySimilarity ?? 0.7, 0.2, 1);
@@ -165,10 +167,17 @@ export function estimateForNewContest(
       * difficultyWeight
       * vacancyWeight;
 
+    const strongComparable = boardMatches
+      && cargoMatches
+      && contest.subjectSimilarity >= 0.6
+      && (contest.difficultySimilarity ?? 0.7) >= 0.5
+      && (contest.vacancySimilarity ?? 0.7) >= 0.5;
+
     return {
       contest,
       percentile: percentileAgainstScores(simulatedScorePercent, contest.rows),
       rawWeight,
+      strongComparable,
     };
   });
 
@@ -195,8 +204,8 @@ export function estimateForNewContest(
     expectedCandidates,
   );
 
-  const effectiveHistory = usable.length;
-  const uncertaintyRate = effectiveHistory >= 5 ? 0.08 : effectiveHistory >= 3 ? 0.14 : 0.22;
+  const strongComparableCount = weightedContests.filter(({ strongComparable }) => strongComparable).length;
+  const uncertaintyRate = strongComparableCount >= 5 ? 0.08 : strongComparableCount >= 3 ? 0.14 : 0.22;
   const margin = Math.max(3, Math.round(expectedCandidates * uncertaintyRate));
 
   return {
@@ -204,7 +213,11 @@ export function estimateForNewContest(
     percentile,
     lowerRank: Math.max(1, estimatedRank - margin),
     upperRank: Math.min(expectedCandidates, estimatedRank + margin),
-    confidence: effectiveHistory >= 5 && sampleSize >= 500 ? 'high' : effectiveHistory >= 3 ? 'medium' : 'low',
+    confidence: strongComparableCount >= 5 && sampleSize >= 500
+      ? 'high'
+      : strongComparableCount >= 3 && sampleSize >= 100
+        ? 'medium'
+        : 'low',
     method: 'historical-board-model',
     sampleSize,
   };
