@@ -1,5 +1,8 @@
-import { readFile } from 'node:fs/promises';
 import { PrismaClient } from '@prisma/client';
+import {
+  parseMaxIngestionFileBytes,
+  readIngestionFileWithinLimit,
+} from '../src/lib/ingestion-file-size.ts';
 import { assertNoDuplicateRankingRows, parseOfficialRankingImport } from '../src/lib/official-ranking-import.ts';
 
 const prisma = new PrismaClient();
@@ -9,7 +12,9 @@ async function main() {
   const inputPath = process.argv[2];
   if (!inputPath) throw new Error('Uso: npm run db:import:ranking -- caminho/arquivo.json');
 
-  const payload = parseOfficialRankingImport(JSON.parse(await readFile(inputPath, 'utf8')));
+  const maxFileBytes = parseMaxIngestionFileBytes(process.env.INGESTION_MAX_FILE_BYTES);
+  const inputBytes = await readIngestionFileWithinLimit(inputPath, maxFileBytes);
+  const payload = parseOfficialRankingImport(JSON.parse(inputBytes.toString('utf8')));
   assertNoDuplicateRankingRows(payload);
 
   const contest = await prisma.contest.findUnique({ where: { id: payload.contestId }, select: { id: true } });
