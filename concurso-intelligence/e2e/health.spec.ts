@@ -14,6 +14,14 @@ test('exposes application and database readiness without caching', async ({ requ
   expect(Date.parse(body.checkedAt)).not.toBeNaN();
   expect(body.uptimeSeconds).toEqual(expect.any(Number));
   expect(body.uptimeSeconds).toBeGreaterThanOrEqual(0);
+  expect(body.metrics.memory.rssBytes).toEqual(expect.any(Number));
+  expect(body.metrics.memory.rssBytes).toBeGreaterThan(0);
+  expect(body.metrics.memory.heapTotalBytes).toEqual(expect.any(Number));
+  expect(body.metrics.memory.heapTotalBytes).toBeGreaterThan(0);
+  expect(body.metrics.memory.heapUsedBytes).toEqual(expect.any(Number));
+  expect(body.metrics.memory.heapUsedBytes).toBeGreaterThanOrEqual(0);
+  expect(body.metrics.memory.externalBytes).toEqual(expect.any(Number));
+  expect(body.metrics.memory.externalBytes).toBeGreaterThanOrEqual(0);
   expect(body.checks.database.status).toBe('ok');
   expect(body.checks.database.latencyMs).toEqual(expect.any(Number));
   expect(body.checks.database.latencyMs).toBeGreaterThanOrEqual(0);
