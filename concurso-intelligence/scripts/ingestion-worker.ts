@@ -1,9 +1,9 @@
 import { spawn } from 'node:child_process';
-import { mkdir, readdir, rename, stat, utimes } from 'node:fs/promises';
+import { mkdir, readdir, rename, stat, utimes, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import {
-  assertIngestionFileSize,
   parseMaxIngestionFileBytes,
+  readIngestionFileWithinLimit,
 } from '../src/lib/ingestion-file-size.ts';
 
 const inboxRoot = process.env.INGESTION_INBOX_DIR?.trim() || '/imports';
@@ -77,11 +77,17 @@ function startClaimHeartbeat(claimedPath: string) {
   return timer;
 }
 
+async function replaceWithBoundedSnapshot(claimedPath: string) {
+  const bytes = await readIngestionFileWithinLimit(claimedPath, maxFileBytes);
+  const snapshotPath = `${claimedPath}.snapshot-${process.pid}-${Date.now()}`;
+  await writeFile(snapshotPath, bytes, { flag: 'wx' });
+  await rename(snapshotPath, claimedPath);
+}
+
 async function processClaimedFile(claimedPath: string, kind: ImportKind) {
   const heartbeat = startClaimHeartbeat(claimedPath);
   try {
-    const metadata = await stat(claimedPath);
-    assertIngestionFileSize(metadata.size, maxFileBytes);
+    await replaceWithBoundedSnapshot(claimedPath);
     console.log(`[ingestion-worker] importando ${kind}: ${claimedPath}`);
     await runImporter(importers[kind], claimedPath);
     const archivedPath = await moveToBucket(claimedPath, kind, 'processed');
