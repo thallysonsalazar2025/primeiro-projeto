@@ -49,3 +49,34 @@ test('does not let caller fields overwrite the log envelope', () => {
   assert.equal(payload.event, 'health.database.degraded');
   assert.equal(payload.timestamp, '2026-09-04T05:00:00.000Z');
 });
+
+test('handles circular arrays without crashing the logger', () => {
+  const circular: unknown[] = [];
+  circular.push(circular);
+
+  const line = structuredLog('warn', 'diagnostic.circular', { circular }, { sink: () => undefined });
+  assert.deepEqual(JSON.parse(line).circular, ['[Circular]']);
+});
+
+test('preserves dates as ISO strings', () => {
+  const line = structuredLog('info', 'job.scheduled', {
+    scheduledAt: new Date('2026-09-04T06:00:00.000Z'),
+  }, { sink: () => undefined });
+
+  assert.equal(JSON.parse(line).scheduledAt, '2026-09-04T06:00:00.000Z');
+});
+
+test('drops toJSON hooks so they cannot bypass redaction', () => {
+  const diagnostic = {
+    password: 'super-secret',
+    toJSON() {
+      return { leakedPassword: this.password };
+    },
+  };
+
+  const line = structuredLog('error', 'diagnostic.serialize', { diagnostic }, { sink: () => undefined });
+  const payload = JSON.parse(line);
+
+  assert.deepEqual(payload.diagnostic, { password: '[REDACTED]' });
+  assert.equal(JSON.stringify(payload).includes('super-secret'), false);
+});
