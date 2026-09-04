@@ -9,7 +9,7 @@ const SENSITIVE_KEY = /(authorization|cookie|password|secret|token|credential|se
 
 function sanitize(value: unknown, seen = new WeakSet<object>()): unknown {
   if (value instanceof Error) {
-    return { name: value.name, message: value.message };
+    return { name: value.name };
   }
   if (typeof value === 'bigint') return value.toString();
   if (Array.isArray(value)) return value.map((item) => sanitize(item, seen));
@@ -32,10 +32,10 @@ export function structuredLog(
   options?: { now?: Date; sink?: LogSink },
 ) {
   const line = JSON.stringify({
+    ...(sanitize(fields) as LogFields),
     timestamp: (options?.now ?? new Date()).toISOString(),
     level,
     event,
-    ...sanitize(fields) as LogFields,
   });
 
   (options?.sink ?? console.log)(line);
