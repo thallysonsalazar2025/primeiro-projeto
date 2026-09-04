@@ -1,14 +1,24 @@
+import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { structuredLog } from '@/lib/structured-log';
 
 export const dynamic = 'force-dynamic';
+
+const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
 
 function uptimeSeconds() {
   return Math.max(0, Math.floor(process.uptime()));
 }
 
-export async function GET() {
+function resolveRequestId(request: Request) {
+  const candidate = request.headers.get('x-request-id')?.trim();
+  return candidate && REQUEST_ID_PATTERN.test(candidate) ? candidate : randomUUID();
+}
+
+export async function GET(request: Request) {
   const checkedAt = new Date().toISOString();
+  const requestId = resolveRequestId(request);
   const databaseStartedAt = performance.now();
 
   try {
@@ -29,11 +39,16 @@ export async function GET() {
       },
       {
         status: 200,
-        headers: { 'Cache-Control': 'no-store' },
+        headers: { 'Cache-Control': 'no-store', 'x-request-id': requestId },
       },
     );
-  } catch {
+  } catch (error) {
     const databaseLatencyMs = Math.max(0, Math.round(performance.now() - databaseStartedAt));
+    structuredLog('error', 'health.database.degraded', {
+      requestId,
+      databaseLatencyMs,
+      error,
+    });
 
     return NextResponse.json(
       {
@@ -49,7 +64,7 @@ export async function GET() {
       },
       {
         status: 503,
-        headers: { 'Cache-Control': 'no-store' },
+        headers: { 'Cache-Control': 'no-store', 'x-request-id': requestId },
       },
     );
   }
