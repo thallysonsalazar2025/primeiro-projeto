@@ -11,14 +11,21 @@ function sanitize(value: unknown, seen = new WeakSet<object>()): unknown {
   if (value instanceof Error) {
     return { name: value.name };
   }
+  if (value instanceof Date) return value.toISOString();
   if (typeof value === 'bigint') return value.toString();
-  if (Array.isArray(value)) return value.map((item) => sanitize(item, seen));
   if (!value || typeof value !== 'object') return value;
   if (seen.has(value)) return '[Circular]';
 
   seen.add(value);
+  if (Array.isArray(value)) {
+    const sanitized = value.map((item) => sanitize(item, seen));
+    seen.delete(value);
+    return sanitized;
+  }
+
   const sanitized: Record<string, unknown> = {};
   for (const [key, nested] of Object.entries(value)) {
+    if (key === 'toJSON') continue;
     sanitized[key] = SENSITIVE_KEY.test(key) ? REDACTED : sanitize(nested, seen);
   }
   seen.delete(value);
