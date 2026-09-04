@@ -55,3 +55,74 @@ test('keeps medium confidence for three strongly comparable contests', () => {
   assert.equal(result.sampleSize, 120);
   assert.equal(result.confidence, 'medium');
 });
+
+test('does not let unrelated rows inflate the comparable sample threshold', () => {
+  const comparable = Array.from({ length: 5 }, (_, index): HistoricalContest => ({
+    contestId: `fgv-ti-small-${index}`,
+    board: 'FGV',
+    cargoFamily: 'TI',
+    subjectSimilarity: 0.8,
+    difficultySimilarity: 0.8,
+    vacancySimilarity: 0.8,
+    rows: rows(55, 20),
+  }));
+  const unrelated: HistoricalContest = {
+    contestId: 'large-unrelated',
+    board: 'CESPE',
+    cargoFamily: 'ADMIN',
+    subjectSimilarity: 0.8,
+    difficultySimilarity: 0.8,
+    vacancySimilarity: 0.8,
+    rows: rows(45, 400),
+  };
+
+  const result = estimateForNewContest(75, 1_000, 'FGV', 'TI', [...comparable, unrelated]);
+
+  assert.equal(result.sampleSize, 500);
+  assert.equal(result.confidence, 'medium');
+});
+
+test('does not declare strong cargo comparability without a target cargo', () => {
+  const history: HistoricalContest[] = Array.from({ length: 5 }, (_, index) => ({
+    contestId: `fgv-arbitrary-${index}`,
+    board: 'FGV',
+    cargoFamily: index % 2 ? 'ADMIN' : 'TI',
+    subjectSimilarity: 0.9,
+    difficultySimilarity: 0.9,
+    vacancySimilarity: 0.9,
+    rows: rows(50),
+  }));
+
+  const result = estimateForNewContest(75, 1_000, 'FGV', undefined, history);
+
+  assert.equal(result.sampleSize, 500);
+  assert.equal(result.confidence, 'medium');
+});
+
+test('does not grant high confidence when comparable histories have negligible effective weight', () => {
+  const comparable = Array.from({ length: 5 }, (_, index): HistoricalContest => ({
+    contestId: `fgv-ti-light-${index}`,
+    board: 'FGV',
+    cargoFamily: 'TI',
+    subjectSimilarity: 0.9,
+    difficultySimilarity: 0.9,
+    vacancySimilarity: 0.9,
+    rows: rows(55),
+    weight: 0.000001,
+  }));
+  const dominantMismatch: HistoricalContest = {
+    contestId: 'dominant-mismatch',
+    board: 'CESPE',
+    cargoFamily: 'ADMIN',
+    subjectSimilarity: 1,
+    difficultySimilarity: 1,
+    vacancySimilarity: 1,
+    rows: rows(30),
+    weight: 1,
+  };
+
+  const result = estimateForNewContest(75, 1_000, 'FGV', 'TI', [...comparable, dominantMismatch]);
+
+  assert.equal(result.sampleSize, 600);
+  assert.equal(result.confidence, 'medium');
+});
