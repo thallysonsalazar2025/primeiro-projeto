@@ -20,10 +20,11 @@ export function buildContentSecurityPolicy(environment = process.env.NODE_ENV) {
 }
 
 export const contentSecurityPolicy = buildContentSecurityPolicy();
+export const strictTransportSecurity = 'max-age=15552000';
 
 export const securityHeaders = [
   { key: 'Content-Security-Policy', value: contentSecurityPolicy },
-  { key: 'Strict-Transport-Security', value: 'max-age=15552000' },
+  { key: 'Strict-Transport-Security', value: strictTransportSecurity },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
