@@ -30,7 +30,6 @@ export function selectSimulationQuestions<T extends OrderedQuestion>(
   return [...candidates]
     .sort((left, right) =>
       left.exam.year - right.exam.year ||
-      left.exam.title.localeCompare(right.exam.title, "pt-BR") ||
       left.exam.id.localeCompare(right.exam.id) ||
       (left.number ?? Number.MAX_SAFE_INTEGER) - (right.number ?? Number.MAX_SAFE_INTEGER) ||
       left.id.localeCompare(right.id),
