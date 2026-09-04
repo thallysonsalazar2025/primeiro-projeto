@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { buildRequestLog } from './lib/request-log';
+import { strictTransportSecurity } from './lib/securityHeaders';
 
 const SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = [
   ['X-Content-Type-Options', 'nosniff'],
@@ -49,7 +50,7 @@ export function middleware(request: NextRequest) {
   }
 
   if (process.env.NODE_ENV === 'production') {
-    response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    response.headers.set('Strict-Transport-Security', strictTransportSecurity);
   }
 
   return response;
