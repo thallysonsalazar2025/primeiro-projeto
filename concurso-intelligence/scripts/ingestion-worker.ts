@@ -61,6 +61,34 @@ function runImporter(importer: string, filePath: string) {
   });
 }
 
+async function processClaimedFile(claimedPath: string, kind: ImportKind) {
+  try {
+    console.log(`[ingestion-worker] importando ${kind}: ${claimedPath}`);
+    await runImporter(importers[kind], claimedPath);
+    const archivedPath = await moveToBucket(claimedPath, kind, 'processed');
+    console.log(`[ingestion-worker] concluído: ${archivedPath}`);
+  } catch (error) {
+    const failedPath = await moveToBucket(claimedPath, kind, 'failed');
+    console.error(`[ingestion-worker] falha; arquivo isolado em ${failedPath}`);
+    console.error(error instanceof Error ? error.message : error);
+  }
+}
+
+async function recoverClaimedFiles(kind: ImportKind) {
+  const processingDir = join(inboxRoot, 'processing', kind);
+  await mkdir(processingDir, { recursive: true });
+
+  const files = (await readdir(processingDir, { withFileTypes: true }))
+    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'))
+    .map((entry) => join(processingDir, entry.name))
+    .sort();
+
+  for (const claimedPath of files) {
+    console.warn(`[ingestion-worker] recuperando lote interrompido: ${claimedPath}`);
+    await processClaimedFile(claimedPath, kind);
+  }
+}
+
 async function processKind(kind: ImportKind) {
   const sourceDir = join(inboxRoot, kind);
   await mkdir(sourceDir, { recursive: true });
@@ -71,23 +99,19 @@ async function processKind(kind: ImportKind) {
     .sort();
 
   for (const filePath of files) {
-    let claimedPath: string | null = null;
     try {
-      claimedPath = await claimFile(filePath, kind);
-      console.log(`[ingestion-worker] importando ${kind}: ${claimedPath}`);
-      await runImporter(importers[kind], claimedPath);
-      const archivedPath = await moveToBucket(claimedPath, kind, 'processed');
-      console.log(`[ingestion-worker] concluído: ${archivedPath}`);
+      const claimedPath = await claimFile(filePath, kind);
+      await processClaimedFile(claimedPath, kind);
     } catch (error) {
-      if (claimedPath) {
-        const failedPath = await moveToBucket(claimedPath, kind, 'failed');
-        console.error(`[ingestion-worker] falha; arquivo isolado em ${failedPath}`);
-      } else {
-        console.error(`[ingestion-worker] falha ao reivindicar arquivo; lote permanece na fila: ${filePath}`);
-      }
+      console.error(`[ingestion-worker] falha ao reivindicar arquivo; lote permanece na fila: ${filePath}`);
       console.error(error instanceof Error ? error.message : error);
     }
   }
+}
+
+async function recoverInterruptedBatches() {
+  await recoverClaimedFiles('questions');
+  await recoverClaimedFiles('rankings');
 }
 
 async function runCycle() {
@@ -97,6 +121,7 @@ async function runCycle() {
 
 async function main() {
   console.log(`[ingestion-worker] inbox=${inboxRoot} interval=${intervalSeconds}s oneShot=${oneShot}`);
+  await recoverInterruptedBatches();
 
   do {
     await runCycle();
