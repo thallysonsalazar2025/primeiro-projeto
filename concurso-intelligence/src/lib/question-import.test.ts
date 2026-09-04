@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateQuestionImportBatch, type QuestionImportBatch } from './question-import.ts';
+import {
+  MAX_QUESTION_IMPORT_BATCH_SIZE,
+  validateQuestionImportBatch,
+  type QuestionImportBatch,
+} from './question-import.ts';
 
 function validBatch(): QuestionImportBatch {
   return {
@@ -23,6 +27,35 @@ function validBatch(): QuestionImportBatch {
 test('accepts a valid official question batch', () => {
   const batch = validBatch();
   assert.equal(validateQuestionImportBatch(batch), batch);
+});
+
+test('accepts a batch at the operational size limit', () => {
+  const batch = validBatch();
+  batch.questions = Array.from({ length: MAX_QUESTION_IMPORT_BATCH_SIZE }, (_, index) => ({
+    number: index + 1,
+    statement: `Enunciado ${index + 1}`,
+    choices: [
+      { label: 'A', text: 'Opção A', isCorrect: true },
+      { label: 'B', text: 'Opção B', isCorrect: false },
+    ],
+  }));
+  assert.equal(validateQuestionImportBatch(batch), batch);
+});
+
+test('rejects oversized batches before the worker reaches persistence', () => {
+  const batch = validBatch();
+  batch.questions = Array.from({ length: MAX_QUESTION_IMPORT_BATCH_SIZE + 1 }, (_, index) => ({
+    number: index + 1,
+    statement: `Enunciado ${index + 1}`,
+    choices: [
+      { label: 'A', text: 'Opção A', isCorrect: true },
+      { label: 'B', text: 'Opção B', isCorrect: false },
+    ],
+  }));
+  assert.throws(
+    () => validateQuestionImportBatch(batch),
+    new RegExp(`limite de ${MAX_QUESTION_IMPORT_BATCH_SIZE} questões por lote`),
+  );
 });
 
 test('accepts a valid SHA-256 integrity hash for the source exam', () => {
