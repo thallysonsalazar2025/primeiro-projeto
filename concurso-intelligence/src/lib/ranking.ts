@@ -204,8 +204,9 @@ export function estimateForNewContest(
     expectedCandidates,
   );
 
+  const effectiveHistory = usable.length;
   const strongComparableCount = weightedContests.filter(({ strongComparable }) => strongComparable).length;
-  const uncertaintyRate = strongComparableCount >= 5 ? 0.08 : strongComparableCount >= 3 ? 0.14 : 0.22;
+  const uncertaintyRate = effectiveHistory >= 5 ? 0.08 : effectiveHistory >= 3 ? 0.14 : 0.22;
   const margin = Math.max(3, Math.round(expectedCandidates * uncertaintyRate));
 
   return {
@@ -215,7 +216,7 @@ export function estimateForNewContest(
     upperRank: Math.min(expectedCandidates, estimatedRank + margin),
     confidence: strongComparableCount >= 5 && sampleSize >= 500
       ? 'high'
-      : strongComparableCount >= 3 && sampleSize >= 100
+      : effectiveHistory >= 3
         ? 'medium'
         : 'low',
     method: 'historical-board-model',
