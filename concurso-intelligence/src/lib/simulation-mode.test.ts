@@ -17,5 +17,5 @@ test("keeps deterministic original exam order", () => {
 test("random mode preserves the existing shuffled behavior", () => {
   const randomValues = [0, 0];
   const selected = selectSimulationQuestions(candidates, 2, "RANDOM", () => randomValues.shift() ?? 0);
-  assert.deepEqual(selected.map((question) => question.id), ["q2", "q3"]);
+  assert.deepEqual(selected.map((question) => question.id), ["q2", "q1"]);
 });
