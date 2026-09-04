@@ -11,6 +11,19 @@ function uptimeSeconds() {
   return Math.max(0, Math.floor(process.uptime()));
 }
 
+function runtimeMetrics() {
+  const memory = process.memoryUsage();
+
+  return {
+    memory: {
+      rssBytes: memory.rss,
+      heapTotalBytes: memory.heapTotal,
+      heapUsedBytes: memory.heapUsed,
+      externalBytes: memory.external,
+    },
+  };
+}
+
 function resolveRequestId(request: Request) {
   const candidate = request.headers.get('x-request-id')?.trim();
   return candidate && REQUEST_ID_PATTERN.test(candidate) ? candidate : randomUUID();
@@ -30,6 +43,7 @@ export async function GET(request: Request) {
         status: 'ok',
         checkedAt,
         uptimeSeconds: uptimeSeconds(),
+        metrics: runtimeMetrics(),
         checks: {
           database: {
             status: 'ok',
@@ -55,6 +69,7 @@ export async function GET(request: Request) {
         status: 'degraded',
         checkedAt,
         uptimeSeconds: uptimeSeconds(),
+        metrics: runtimeMetrics(),
         checks: {
           database: {
             status: 'unavailable',
