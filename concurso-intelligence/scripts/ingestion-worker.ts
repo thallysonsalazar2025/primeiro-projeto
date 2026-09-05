@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdir, readdir, rename, stat, utimes, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import {
@@ -30,6 +31,22 @@ function parsePositiveInteger(value: string | undefined, fallback: number) {
     throw new Error(`Valor inválido para intervalo do worker: ${value}`);
   }
   return parsed;
+}
+
+function isMissingFile(error: unknown) {
+  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
+}
+
+function claimStartedAt(filePath: string) {
+  const match = /^(\d+)-/.exec(basename(filePath));
+  if (!match) return null;
+
+  const timestamp = Number(match[1]);
+  return Number.isSafeInteger(timestamp) && timestamp > 0 ? timestamp : null;
+}
+
+function recoveryToken(filePath: string) {
+  return createHash('sha256').update(basename(filePath)).digest('hex').slice(0, 16);
 }
 
 async function moveToBucket(filePath: string, kind: ImportKind, bucket: 'processed' | 'failed') {
@@ -108,8 +125,30 @@ async function processClaimedFile(claimedPath: string, kind: ImportKind) {
 }
 
 async function isStaleClaim(filePath: string) {
-  const metadata = await stat(filePath);
-  return Date.now() - metadata.mtimeMs >= staleClaimSeconds * 1000;
+  try {
+    const metadata = await stat(filePath);
+    const startedAt = claimStartedAt(filePath) ?? 0;
+    const lastActivityAt = Math.max(startedAt, metadata.mtimeMs);
+    return Date.now() - lastActivityAt >= staleClaimSeconds * 1000;
+  } catch (error) {
+    if (isMissingFile(error)) return false;
+    throw error;
+  }
+}
+
+async function reclaimStaleFile(claimedPath: string, processingDir: string) {
+  const recoveredPath = join(
+    processingDir,
+    `${Date.now()}-${process.pid}-recovered-${recoveryToken(claimedPath)}.json`,
+  );
+
+  try {
+    await rename(claimedPath, recoveredPath);
+    return recoveredPath;
+  } catch (error) {
+    if (isMissingFile(error)) return null;
+    throw error;
+  }
 }
 
 async function recoverClaimedFiles(kind: ImportKind) {
@@ -123,8 +162,15 @@ async function recoverClaimedFiles(kind: ImportKind) {
 
   for (const claimedPath of files) {
     if (!(await isStaleClaim(claimedPath))) continue;
-    console.warn(`[ingestion-worker] recuperando lote interrompido: ${claimedPath}`);
-    await processClaimedFile(claimedPath, kind);
+
+    const recoveredPath = await reclaimStaleFile(claimedPath, processingDir);
+    if (!recoveredPath) {
+      console.warn(`[ingestion-worker] lote stale já reivindicado por outro worker: ${claimedPath}`);
+      continue;
+    }
+
+    console.warn(`[ingestion-worker] recuperando lote interrompido: ${recoveredPath}`);
+    await processClaimedFile(recoveredPath, kind);
   }
 }
 
