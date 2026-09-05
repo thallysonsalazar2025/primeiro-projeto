@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdir, readdir, rename, stat, utimes, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
+import { ingestionHeartbeatMs } from '../src/lib/ingestion-heartbeat.ts';
 import {
   parseMaxIngestionFileBytes,
   readIngestionFileWithinLimit,
@@ -85,7 +86,7 @@ function runImporter(importer: string, filePath: string) {
 }
 
 function startClaimHeartbeat(claimedPath: string) {
-  const heartbeatMs = Math.max(100, Math.floor((staleClaimSeconds * 1000) / 3));
+  const heartbeatMs = ingestionHeartbeatMs(staleClaimSeconds);
   const timer = setInterval(() => {
     const now = new Date();
     void utimes(claimedPath, now, now).catch(() => undefined);
