@@ -98,16 +98,20 @@ function startClaimHeartbeat(claimedPath: string) {
 async function replaceWithBoundedSnapshot(claimedPath: string) {
   const bytes = await readIngestionFileWithinLimit(claimedPath, maxFileBytes);
   const snapshotPath = `${claimedPath}.snapshot-${process.pid}-${Date.now()}`;
+  let snapshotCreated = false;
 
   try {
     await writeFile(snapshotPath, bytes, { flag: 'wx' });
+    snapshotCreated = true;
     await rename(snapshotPath, claimedPath);
   } catch (error) {
-    await unlink(snapshotPath).catch((cleanupError) => {
-      if (!isMissingFile(cleanupError)) {
-        console.warn(`[ingestion-worker] falha ao limpar snapshot temporário: ${snapshotPath}`);
-      }
-    });
+    if (snapshotCreated) {
+      await unlink(snapshotPath).catch((cleanupError) => {
+        if (!isMissingFile(cleanupError)) {
+          console.warn(`[ingestion-worker] falha ao limpar snapshot temporário: ${snapshotPath}`);
+        }
+      });
+    }
     throw error;
   }
 }
