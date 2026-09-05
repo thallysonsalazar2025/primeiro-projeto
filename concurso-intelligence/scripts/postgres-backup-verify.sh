@@ -27,6 +27,7 @@ esac
   exit 1
 }
 
+expected_checksum="$(printf '%s' "$expected_checksum" | tr 'A-F' 'a-f')"
 actual_checksum="$(sha256sum "$backup_path" | awk '{ print $1 }')"
 if [ "$actual_checksum" != "$expected_checksum" ]; then
   echo "Backup checksum mismatch: $backup_path" >&2
