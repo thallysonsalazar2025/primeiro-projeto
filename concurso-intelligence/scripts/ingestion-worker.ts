@@ -85,7 +85,7 @@ function runImporter(importer: string, filePath: string) {
 }
 
 function startClaimHeartbeat(claimedPath: string) {
-  const heartbeatMs = Math.max(1000, Math.floor((staleClaimSeconds * 1000) / 3));
+  const heartbeatMs = Math.max(100, Math.floor((staleClaimSeconds * 1000) / 3));
   const timer = setInterval(() => {
     const now = new Date();
     void utimes(claimedPath, now, now).catch(() => undefined);
