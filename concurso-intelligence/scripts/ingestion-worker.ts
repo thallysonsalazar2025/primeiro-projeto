@@ -125,14 +125,11 @@ async function processClaimedFile(claimedPath: string, kind: ImportKind) {
 }
 
 async function isStaleClaim(filePath: string) {
-  const startedAt = claimStartedAt(filePath);
-  if (startedAt !== null) {
-    return Date.now() - startedAt >= staleClaimSeconds * 1000;
-  }
-
   try {
     const metadata = await stat(filePath);
-    return Date.now() - metadata.mtimeMs >= staleClaimSeconds * 1000;
+    const startedAt = claimStartedAt(filePath) ?? 0;
+    const lastActivityAt = Math.max(startedAt, metadata.mtimeMs);
+    return Date.now() - lastActivityAt >= staleClaimSeconds * 1000;
   } catch (error) {
     if (isMissingFile(error)) return false;
     throw error;
