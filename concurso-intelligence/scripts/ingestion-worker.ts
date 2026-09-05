@@ -1,12 +1,13 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, rename, stat, unlink, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rename, stat, utimes, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { ingestionHeartbeatMs } from '../src/lib/ingestion-heartbeat.ts';
 import {
   parseMaxIngestionFileBytes,
   readIngestionFileWithinLimit,
 } from '../src/lib/ingestion-file-size.ts';
+import { cleanupOwnedIngestionSnapshot } from '../src/lib/ingestion-snapshot.ts';
 
 const inboxRoot = process.env.INGESTION_INBOX_DIR?.trim() || '/imports';
 const intervalSeconds = parsePositiveInteger(process.env.INGESTION_INTERVAL_SECONDS, 60);
@@ -105,13 +106,9 @@ async function replaceWithBoundedSnapshot(claimedPath: string) {
     snapshotCreated = true;
     await rename(snapshotPath, claimedPath);
   } catch (error) {
-    if (snapshotCreated) {
-      await unlink(snapshotPath).catch((cleanupError) => {
-        if (!isMissingFile(cleanupError)) {
-          console.warn(`[ingestion-worker] falha ao limpar snapshot temporário: ${snapshotPath}`);
-        }
-      });
-    }
+    await cleanupOwnedIngestionSnapshot(snapshotPath, snapshotCreated).catch(() => {
+      console.warn(`[ingestion-worker] falha ao limpar snapshot temporário: ${snapshotPath}`);
+    });
     throw error;
   }
 }
