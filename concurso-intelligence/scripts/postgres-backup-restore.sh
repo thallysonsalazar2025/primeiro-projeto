@@ -23,13 +23,18 @@ verifier="/usr/local/bin/postgres-backup-verify.sh"
 
 sh "$verifier" "$backup_path"
 
-echo "[$(date -u +%FT%TZ)] restoring verified PostgreSQL backup: $backup_path"
-pg_restore \
-  --dbname="$RESTORE_DATABASE_URL" \
-  --clean \
-  --if-exists \
-  --single-transaction \
-  --no-owner \
-  --no-privileges \
-  "$backup_path"
+echo "[$(date -u +%FT%TZ)] restoring verified PostgreSQL backup atomically: $backup_path"
+{
+  printf '%s\n' 'DROP SCHEMA IF EXISTS public CASCADE;' 'CREATE SCHEMA public;'
+  pg_restore \
+    --clean \
+    --if-exists \
+    --no-owner \
+    --no-privileges \
+    --file=- \
+    "$backup_path"
+} | psql \
+  "$RESTORE_DATABASE_URL" \
+  --set=ON_ERROR_STOP=1 \
+  --single-transaction
 echo "[$(date -u +%FT%TZ)] PostgreSQL restore completed: $backup_path"
