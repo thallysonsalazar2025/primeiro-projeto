@@ -32,8 +32,14 @@ run_backup() {
     --no-owner \
     --no-privileges \
     --file="$temp_path"; then
+    if ! pg_restore --list "$temp_path" >/dev/null; then
+      rm -f "$temp_path"
+      echo "[$(date -u +%FT%TZ)] PostgreSQL backup validation failed" >&2
+      return 1
+    fi
+
     mv "$temp_path" "$final_path"
-    echo "[$(date -u +%FT%TZ)] backup created: $final_path"
+    echo "[$(date -u +%FT%TZ)] backup created and validated: $final_path"
   else
     rm -f "$temp_path"
     echo "[$(date -u +%FT%TZ)] PostgreSQL backup failed" >&2
