@@ -32,6 +32,10 @@ function parsePositiveInteger(value: string | undefined, fallback: number) {
   return parsed;
 }
 
+function isMissingFile(error: unknown) {
+  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
+}
+
 async function moveToBucket(filePath: string, kind: ImportKind, bucket: 'processed' | 'failed') {
   const destinationDir = join(inboxRoot, bucket, kind);
   await mkdir(destinationDir, { recursive: true });
@@ -108,12 +112,13 @@ async function processClaimedFile(claimedPath: string, kind: ImportKind) {
 }
 
 async function isStaleClaim(filePath: string) {
-  const metadata = await stat(filePath);
-  return Date.now() - metadata.mtimeMs >= staleClaimSeconds * 1000;
-}
-
-function isMissingFile(error: unknown) {
-  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
+  try {
+    const metadata = await stat(filePath);
+    return Date.now() - metadata.mtimeMs >= staleClaimSeconds * 1000;
+  } catch (error) {
+    if (isMissingFile(error)) return false;
+    throw error;
+  }
 }
 
 async function reclaimStaleFile(claimedPath: string, processingDir: string) {
