@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdir, readdir, rename, stat, utimes, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import {
@@ -34,6 +35,18 @@ function parsePositiveInteger(value: string | undefined, fallback: number) {
 
 function isMissingFile(error: unknown) {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT';
+}
+
+function claimStartedAt(filePath: string) {
+  const match = /^(\d+)-/.exec(basename(filePath));
+  if (!match) return null;
+
+  const timestamp = Number(match[1]);
+  return Number.isSafeInteger(timestamp) && timestamp > 0 ? timestamp : null;
+}
+
+function recoveryToken(filePath: string) {
+  return createHash('sha256').update(basename(filePath)).digest('hex').slice(0, 16);
 }
 
 async function moveToBucket(filePath: string, kind: ImportKind, bucket: 'processed' | 'failed') {
@@ -112,6 +125,11 @@ async function processClaimedFile(claimedPath: string, kind: ImportKind) {
 }
 
 async function isStaleClaim(filePath: string) {
+  const startedAt = claimStartedAt(filePath);
+  if (startedAt !== null) {
+    return Date.now() - startedAt >= staleClaimSeconds * 1000;
+  }
+
   try {
     const metadata = await stat(filePath);
     return Date.now() - metadata.mtimeMs >= staleClaimSeconds * 1000;
@@ -124,7 +142,7 @@ async function isStaleClaim(filePath: string) {
 async function reclaimStaleFile(claimedPath: string, processingDir: string) {
   const recoveredPath = join(
     processingDir,
-    `${Date.now()}-${process.pid}-recovered-${basename(claimedPath)}`,
+    `${Date.now()}-${process.pid}-recovered-${recoveryToken(claimedPath)}.json`,
   );
 
   try {
