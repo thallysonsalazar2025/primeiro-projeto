@@ -22,9 +22,11 @@ run_backup() {
   timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
   final_path="$BACKUP_DIR/concurso-intelligence-$timestamp.dump"
   temp_path="$final_path.tmp"
+  checksum_path="$final_path.sha256"
+  temp_checksum_path="$checksum_path.tmp"
 
   echo "[$(date -u +%FT%TZ)] starting PostgreSQL backup"
-  rm -f "$temp_path"
+  rm -f "$temp_path" "$temp_checksum_path"
 
   if pg_dump \
     --dbname="$DATABASE_URL" \
@@ -38,15 +40,38 @@ run_backup() {
       return 1
     fi
 
-    mv "$temp_path" "$final_path"
-    echo "[$(date -u +%FT%TZ)] backup created and validated: $final_path"
+    if ! checksum="$(sha256sum "$temp_path" | awk '{print $1}')" || [ -z "$checksum" ]; then
+      rm -f "$temp_path" "$temp_checksum_path"
+      echo "[$(date -u +%FT%TZ)] PostgreSQL backup checksum failed" >&2
+      return 1
+    fi
+
+    if ! printf '%s  %s\n' "$checksum" "$(basename "$final_path")" >"$temp_checksum_path"; then
+      rm -f "$temp_path" "$temp_checksum_path"
+      echo "[$(date -u +%FT%TZ)] PostgreSQL backup checksum write failed" >&2
+      return 1
+    fi
+
+    if ! mv "$temp_checksum_path" "$checksum_path"; then
+      rm -f "$temp_path" "$temp_checksum_path" "$checksum_path"
+      echo "[$(date -u +%FT%TZ)] PostgreSQL backup checksum publication failed" >&2
+      return 1
+    fi
+
+    if ! mv "$temp_path" "$final_path"; then
+      rm -f "$temp_path" "$checksum_path"
+      echo "[$(date -u +%FT%TZ)] PostgreSQL backup publication failed" >&2
+      return 1
+    fi
+
+    echo "[$(date -u +%FT%TZ)] backup created, validated and checksummed: $final_path"
   else
-    rm -f "$temp_path"
+    rm -f "$temp_path" "$temp_checksum_path"
     echo "[$(date -u +%FT%TZ)] PostgreSQL backup failed" >&2
     return 1
   fi
 
-  find "$BACKUP_DIR" -type f -name 'concurso-intelligence-*.dump' -mtime "+$BACKUP_RETENTION_DAYS" -delete
+  find "$BACKUP_DIR" -type f \( -name 'concurso-intelligence-*.dump' -o -name 'concurso-intelligence-*.dump.sha256' \) -mtime "+$BACKUP_RETENTION_DAYS" -delete
 }
 
 while :; do
