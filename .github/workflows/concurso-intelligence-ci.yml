@@ -58,7 +58,7 @@ jobs:
         run: docker compose config --quiet
       - name: Build application image
         run: docker build --tag concurso-intelligence:ci .
-      - name: Smoke test Compose runtime, health and PostgreSQL backup
+      - name: Smoke test Compose runtime, health and PostgreSQL backup/restore
         shell: bash
         run: |
           set -euo pipefail
@@ -109,6 +109,29 @@ jobs:
             -v "$PWD/.ci-backups:/backups:ro" \
             postgres:16-alpine \
             pg_restore --list "/backups/$(basename "$backup_file")" >/dev/null
+
+          docker compose exec -T postgres \
+            psql -U concurso -d concurso_intelligence -v ON_ERROR_STOP=1 \
+            -c 'CREATE TABLE public.restore_probe (id integer PRIMARY KEY);'
+
+          BACKUP_DIR=.ci-backups docker compose --profile backup run --rm --no-deps \
+            -e RESTORE_DATABASE_URL=postgresql://concurso:concurso_local@postgres:5432/concurso_intelligence \
+            -e RESTORE_CONFIRM=yes \
+            backup sh /usr/local/bin/postgres-backup-restore.sh \
+            "/backups/$(basename "$backup_file")"
+
+          probe_exists="$(docker compose exec -T postgres \
+            psql -U concurso -d concurso_intelligence -Atqc \
+            "SELECT to_regclass('public.restore_probe') IS NOT NULL;")"
+          if [ "$probe_exists" != "f" ]; then
+            echo "Restore did not remove objects created after the backup" >&2
+            exit 1
+          fi
+
+          curl --fail --silent --show-error \
+            --connect-timeout 2 \
+            --max-time 5 \
+            http://127.0.0.1:3000/api/health >/dev/null
 
   e2e:
     runs-on: ubuntu-latest
