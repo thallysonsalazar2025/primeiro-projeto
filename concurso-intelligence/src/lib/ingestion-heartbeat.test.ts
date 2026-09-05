@@ -17,3 +17,7 @@ test('usa aproximadamente um terço do limiar stale em valores usuais', () => {
 test('preserva piso operacional de 100ms', () => {
   assert.equal(ingestionHeartbeatMs(0.1), 100);
 });
+
+test('não ultrapassa o maior delay suportado pelos timers do Node', () => {
+  assert.equal(ingestionHeartbeatMs(10_000_000), 2_147_483_647);
+});
