@@ -121,11 +121,13 @@ async function processClaimedFile(claimedPath: string, kind: ImportKind) {
     await runImporter(importers[kind], claimedPath);
     const archivedPath = await moveToBucket(claimedPath, kind, 'processed');
     console.log(`[ingestion-worker] concluído: ${archivedPath}`);
+    return true;
   } catch (error) {
     try {
       const failedPath = await moveToBucket(claimedPath, kind, 'failed');
       console.error(`[ingestion-worker] falha; arquivo isolado em ${failedPath}`);
       console.error(error instanceof Error ? error.message : error);
+      return false;
     } catch (archiveError) {
       console.error(`[ingestion-worker] falha ao isolar lote já reivindicado: ${claimedPath}`);
       console.error(archiveError instanceof Error ? archiveError.message : archiveError);
@@ -171,6 +173,7 @@ async function recoverClaimedFiles(kind: ImportKind) {
     .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'))
     .map((entry) => join(processingDir, entry.name))
     .sort();
+  let succeeded = true;
 
   for (const claimedPath of files) {
     if (!(await isStaleClaim(claimedPath))) continue;
@@ -182,8 +185,10 @@ async function recoverClaimedFiles(kind: ImportKind) {
     }
 
     console.warn(`[ingestion-worker] recuperando lote interrompido: ${recoveredPath}`);
-    await processClaimedFile(recoveredPath, kind);
+    if (!(await processClaimedFile(recoveredPath, kind))) succeeded = false;
   }
+
+  return succeeded;
 }
 
 async function processKind(kind: ImportKind) {
@@ -194,6 +199,7 @@ async function processKind(kind: ImportKind) {
     .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'))
     .map((entry) => join(sourceDir, entry.name))
     .sort();
+  let succeeded = true;
 
   for (const filePath of files) {
     let claimedPath: string;
@@ -202,22 +208,27 @@ async function processKind(kind: ImportKind) {
     } catch (error) {
       console.error(`[ingestion-worker] falha ao reivindicar arquivo; lote permanece na fila: ${filePath}`);
       console.error(error instanceof Error ? error.message : error);
+      succeeded = false;
       continue;
     }
 
-    await processClaimedFile(claimedPath, kind);
+    if (!(await processClaimedFile(claimedPath, kind))) succeeded = false;
   }
+
+  return succeeded;
 }
 
 async function recoverInterruptedBatches() {
-  await recoverClaimedFiles('questions');
-  await recoverClaimedFiles('rankings');
+  const questionsSucceeded = await recoverClaimedFiles('questions');
+  const rankingsSucceeded = await recoverClaimedFiles('rankings');
+  return questionsSucceeded && rankingsSucceeded;
 }
 
 async function runCycle() {
-  await recoverInterruptedBatches();
-  await processKind('questions');
-  await processKind('rankings');
+  const recoverySucceeded = await recoverInterruptedBatches();
+  const questionsSucceeded = await processKind('questions');
+  const rankingsSucceeded = await processKind('rankings');
+  return recoverySucceeded && questionsSucceeded && rankingsSucceeded;
 }
 
 async function main() {
@@ -226,7 +237,10 @@ async function main() {
   );
 
   do {
-    await runCycle();
+    const cycleSucceeded = await runCycle();
+    if (oneShot && !cycleSucceeded) {
+      throw new Error('Ciclo de ingestão oneshot concluído com um ou mais lotes com falha.');
+    }
     if (!oneShot) await new Promise((resolve) => setTimeout(resolve, intervalSeconds * 1000));
   } while (!oneShot);
 }
