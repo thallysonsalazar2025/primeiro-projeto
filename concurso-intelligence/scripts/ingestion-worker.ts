@@ -112,6 +112,25 @@ async function isStaleClaim(filePath: string) {
   return Date.now() - metadata.mtimeMs >= staleClaimSeconds * 1000;
 }
 
+function isMissingFile(error: unknown) {
+  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
+}
+
+async function reclaimStaleFile(claimedPath: string, processingDir: string) {
+  const recoveredPath = join(
+    processingDir,
+    `${Date.now()}-${process.pid}-recovered-${basename(claimedPath)}`,
+  );
+
+  try {
+    await rename(claimedPath, recoveredPath);
+    return recoveredPath;
+  } catch (error) {
+    if (isMissingFile(error)) return null;
+    throw error;
+  }
+}
+
 async function recoverClaimedFiles(kind: ImportKind) {
   const processingDir = join(inboxRoot, 'processing', kind);
   await mkdir(processingDir, { recursive: true });
@@ -123,8 +142,15 @@ async function recoverClaimedFiles(kind: ImportKind) {
 
   for (const claimedPath of files) {
     if (!(await isStaleClaim(claimedPath))) continue;
-    console.warn(`[ingestion-worker] recuperando lote interrompido: ${claimedPath}`);
-    await processClaimedFile(claimedPath, kind);
+
+    const recoveredPath = await reclaimStaleFile(claimedPath, processingDir);
+    if (!recoveredPath) {
+      console.warn(`[ingestion-worker] lote stale já reivindicado por outro worker: ${claimedPath}`);
+      continue;
+    }
+
+    console.warn(`[ingestion-worker] recuperando lote interrompido: ${recoveredPath}`);
+    await processClaimedFile(recoveredPath, kind);
   }
 }
 
