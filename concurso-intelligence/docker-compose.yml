@@ -101,6 +101,7 @@ services:
       - ${BACKUP_DIR:-./backups}:/backups
       - ./scripts/postgres-backup.sh:/usr/local/bin/postgres-backup.sh:ro
       - ./scripts/postgres-backup-verify.sh:/usr/local/bin/postgres-backup-verify.sh:ro
+      - ./scripts/postgres-backup-restore.sh:/usr/local/bin/postgres-backup-restore.sh:ro
     command: ["sh", "/usr/local/bin/postgres-backup.sh"]
 
 volumes:
