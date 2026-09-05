@@ -20,14 +20,16 @@ test('worker oneshot retorna erro e isola lote inválido', async () => {
         cwd: process.cwd(),
         env: {
           ...process.env,
-          DATABASE_URL: process.env.DATABASE_URL || 'postgresql://invalid:invalid@127.0.0.1:1/invalid',
+          DATABASE_URL: process.env.DATABASE_URL || 'postgresql://127.0.0.1:1/invalid',
           INGESTION_INBOX_DIR: inbox,
           INGESTION_ONESHOT: 'true',
         },
         encoding: 'utf8',
+        timeout: 10_000,
       },
     );
 
+    assert.ifError(result.error);
     assert.equal(result.status, 1, `stdout=${result.stdout}\nstderr=${result.stderr}`);
     assert.match(result.stderr, /Ciclo de ingestão oneshot concluído com um ou mais lotes com falha/);
 
