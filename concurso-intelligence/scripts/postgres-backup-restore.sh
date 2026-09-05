@@ -28,6 +28,7 @@ pg_restore \
   --dbname="$RESTORE_DATABASE_URL" \
   --clean \
   --if-exists \
+  --single-transaction \
   --no-owner \
   --no-privileges \
   "$backup_path"
