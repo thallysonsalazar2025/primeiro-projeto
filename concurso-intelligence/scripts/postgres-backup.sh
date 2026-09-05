@@ -46,13 +46,24 @@ run_backup() {
       return 1
     fi
 
-    printf '%s  %s\n' "$checksum" "$(basename "$final_path")" >"$temp_checksum_path"
-    mv "$temp_path" "$final_path"
+    if ! printf '%s  %s\n' "$checksum" "$(basename "$final_path")" >"$temp_checksum_path"; then
+      rm -f "$temp_path" "$temp_checksum_path"
+      echo "[$(date -u +%FT%TZ)] PostgreSQL backup checksum write failed" >&2
+      return 1
+    fi
+
     if ! mv "$temp_checksum_path" "$checksum_path"; then
-      rm -f "$final_path" "$temp_checksum_path"
+      rm -f "$temp_path" "$temp_checksum_path" "$checksum_path"
       echo "[$(date -u +%FT%TZ)] PostgreSQL backup checksum publication failed" >&2
       return 1
     fi
+
+    if ! mv "$temp_path" "$final_path"; then
+      rm -f "$temp_path" "$checksum_path"
+      echo "[$(date -u +%FT%TZ)] PostgreSQL backup publication failed" >&2
+      return 1
+    fi
+
     echo "[$(date -u +%FT%TZ)] backup created, validated and checksummed: $final_path"
   else
     rm -f "$temp_path" "$temp_checksum_path"
