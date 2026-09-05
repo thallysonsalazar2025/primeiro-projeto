@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, rename, stat, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rename, stat, unlink, utimes, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { ingestionHeartbeatMs } from '../src/lib/ingestion-heartbeat.ts';
 import {
@@ -98,8 +98,22 @@ function startClaimHeartbeat(claimedPath: string) {
 async function replaceWithBoundedSnapshot(claimedPath: string) {
   const bytes = await readIngestionFileWithinLimit(claimedPath, maxFileBytes);
   const snapshotPath = `${claimedPath}.snapshot-${process.pid}-${Date.now()}`;
-  await writeFile(snapshotPath, bytes, { flag: 'wx' });
-  await rename(snapshotPath, claimedPath);
+  let snapshotCreated = false;
+
+  try {
+    await writeFile(snapshotPath, bytes, { flag: 'wx' });
+    snapshotCreated = true;
+    await rename(snapshotPath, claimedPath);
+  } catch (error) {
+    if (snapshotCreated) {
+      await unlink(snapshotPath).catch((cleanupError) => {
+        if (!isMissingFile(cleanupError)) {
+          console.warn(`[ingestion-worker] falha ao limpar snapshot temporário: ${snapshotPath}`);
+        }
+      });
+    }
+    throw error;
+  }
 }
 
 async function processClaimedFile(claimedPath: string, kind: ImportKind) {
