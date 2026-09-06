@@ -7,6 +7,7 @@ import { claimQuestionFingerprint, questionFingerprint } from '../src/lib/questi
 import {
   latestProvenanceRetrievedAt,
   nextProvenanceHash,
+  nextProvenanceOptionalMetadata,
   shouldCreateProvenanceRevision,
 } from '../src/lib/question-provenance.ts';
 import { questionSourceMetadataUpdate } from '../src/lib/question-source-metadata.ts';
@@ -117,6 +118,8 @@ async function main() {
       });
 
   const sourceType = SourceType[batch.source.type];
+  const hasLicense = Object.prototype.hasOwnProperty.call(batch.source, 'license');
+  const hasNotes = Object.prototype.hasOwnProperty.call(batch.source, 'notes');
   let created = 0;
   let updated = 0;
   let duplicates = 0;
@@ -277,9 +280,9 @@ async function main() {
       await prisma.questionProvenance.update({
         where: { id: provenance.id },
         data: {
-          license: batch.source.license?.trim() || null,
+          license: nextProvenanceOptionalMetadata(provenance.license, batch.source.license, hasLicense),
           sourceHash: nextProvenanceHash(provenance.sourceHash, incomingSourceHash),
-          notes: batch.source.notes?.trim() || null,
+          notes: nextProvenanceOptionalMetadata(provenance.notes, batch.source.notes, hasNotes),
           retrievedAt: latestProvenanceRetrievedAt(provenance.retrievedAt, retrievedAt),
         },
       });
