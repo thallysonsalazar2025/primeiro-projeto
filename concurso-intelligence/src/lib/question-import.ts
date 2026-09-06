@@ -70,7 +70,14 @@ function requireNonBlank(value: unknown, field: string): asserts value is string
   if (typeof value !== 'string' || !value.trim()) throw new Error(`${field} não pode ser vazio`);
 }
 
-function validateOptionalSha256(value: string | null | undefined, field: string) {
+function validateOptionalString(value: unknown, field: string): asserts value is string | null | undefined {
+  if (value != null && typeof value !== 'string') {
+    throw new Error(`${field} deve ser texto`);
+  }
+}
+
+function validateOptionalSha256(value: unknown, field: string) {
+  validateOptionalString(value, field);
   if (value == null || !value.trim()) return;
   if (!/^[a-fA-F0-9]{64}$/.test(value.trim())) {
     throw new Error(`${field} deve conter um SHA-256 hexadecimal de 64 caracteres`);
@@ -87,6 +94,8 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
   requireNonBlank(batch.board.acronym, 'board.acronym');
   requireNonBlank(batch.board.name, 'board.name');
   requireNonBlank(batch.exam.title, 'exam.title');
+  validateOptionalString(batch.board.website, 'board.website');
+  validateOptionalString(batch.exam.sourceDocument, 'exam.sourceDocument');
 
   if (!Number.isInteger(batch.exam.year) || batch.exam.year < 1900 || batch.exam.year > 2200) {
     throw new Error('exam.year inválido');
@@ -98,6 +107,8 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
   }
 
   requireNonBlank(batch.source.url, 'source.url');
+  validateOptionalString(batch.source.license, 'source.license');
+  validateOptionalString(batch.source.notes, 'source.notes');
   validatePublicHttpUrl(batch.source.url, 'source.url');
   validateOptionalSha256(batch.source.sourceHash, 'source.sourceHash');
   if (batch.board.website?.trim()) {
@@ -114,6 +125,10 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
     const prefix = `questions[${index}]`;
     requireRecord(question, prefix);
     requireNonBlank(question.statement, `${prefix}.statement`);
+    validateOptionalString(question.explanation, `${prefix}.explanation`);
+    validateOptionalString(question.subject, `${prefix}.subject`);
+    validateOptionalString(question.topic, `${prefix}.topic`);
+    validateOptionalString(question.sourceLabel, `${prefix}.sourceLabel`);
     if (!Array.isArray(question.choices)) throw new Error(`${prefix}.choices deve ser uma lista`);
     if (question.number != null && (!Number.isInteger(question.number) || question.number <= 0)) {
       throw new Error(`${prefix}.number deve ser inteiro positivo`);
