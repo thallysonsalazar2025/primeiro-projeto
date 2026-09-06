@@ -78,3 +78,20 @@ test('rejects malformed optional text fields before importer trim calls', () => 
   subject.questions[0].subject = { name: 'Tecnologia' };
   assert.throws(() => validateQuestionImportBatch(asBatch(subject)), /questions\[0\]\.subject deve ser texto/);
 });
+
+test('accepts an explicit UTC collection timestamp for provenance', () => {
+  const batch = validBatch();
+  batch.source.retrievedAt = '2026-09-06T10:15:30.123Z';
+  assert.equal(validateQuestionImportBatch(batch), batch);
+});
+
+test('rejects malformed or offset source collection timestamps', () => {
+  for (const retrievedAt of ['06/09/2026 10:15', '2026-09-06T10:15:30-03:00', '2026-13-40T99:99:99Z']) {
+    const batch = validBatch();
+    batch.source.retrievedAt = retrievedAt;
+    assert.throws(
+      () => validateQuestionImportBatch(batch),
+      /source\.retrievedAt deve estar em ISO-8601 UTC/,
+    );
+  }
+});
