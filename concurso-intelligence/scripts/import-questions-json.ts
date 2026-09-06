@@ -4,6 +4,7 @@ import { AnswerKeyKind, Prisma, PrismaClient, QuestionStatus, SourceType } from 
 import { serializeIngestionReport, type IngestionReport } from '../src/lib/ingestion-report.ts';
 import { claimQuestionFingerprint, questionFingerprint } from '../src/lib/question-fingerprint.ts';
 import {
+  latestProvenanceRetrievedAt,
   nextProvenanceHash,
   shouldCreateProvenanceRevision,
 } from '../src/lib/question-provenance.ts';
@@ -278,7 +279,7 @@ async function main() {
           license: batch.source.license?.trim() || null,
           sourceHash: nextProvenanceHash(provenance.sourceHash, incomingSourceHash),
           notes: batch.source.notes?.trim() || null,
-          retrievedAt,
+          retrievedAt: latestProvenanceRetrievedAt(provenance.retrievedAt, retrievedAt),
         },
       });
     } else {
