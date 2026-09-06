@@ -3,6 +3,10 @@ import { open, readFile, writeFile } from 'node:fs/promises';
 import { AnswerKeyKind, Prisma, PrismaClient, QuestionStatus, SourceType } from '@prisma/client';
 import { serializeIngestionReport, type IngestionReport } from '../src/lib/ingestion-report.ts';
 import { questionFingerprint } from '../src/lib/question-fingerprint.ts';
+import {
+  nextProvenanceHash,
+  shouldCreateProvenanceRevision,
+} from '../src/lib/question-provenance.ts';
 import { sanitizeReportSourceUrl } from '../src/lib/report-source-url.ts';
 import {
   validateQuestionImportBatch,
@@ -255,14 +259,20 @@ async function main() {
         sourceType,
         sourceUrl: batch.source.url,
       },
+      orderBy: { retrievedAt: 'desc' },
     });
 
-    if (provenance) {
+    const incomingSourceHash = batch.source.sourceHash?.trim() || null;
+    const createRevision = provenance
+      ? shouldCreateProvenanceRevision(provenance.sourceHash, incomingSourceHash)
+      : false;
+
+    if (provenance && !createRevision) {
       await prisma.questionProvenance.update({
         where: { id: provenance.id },
         data: {
           license: batch.source.license?.trim() || null,
-          sourceHash: batch.source.sourceHash?.trim() || null,
+          sourceHash: nextProvenanceHash(provenance.sourceHash, incomingSourceHash),
           notes: batch.source.notes?.trim() || null,
           retrievedAt: verifiedAt,
         },
@@ -274,7 +284,7 @@ async function main() {
           sourceType,
           sourceUrl: batch.source.url,
           license: batch.source.license?.trim() || null,
-          sourceHash: batch.source.sourceHash?.trim() || null,
+          sourceHash: incomingSourceHash,
           notes: batch.source.notes?.trim() || null,
           retrievedAt: verifiedAt,
         },
