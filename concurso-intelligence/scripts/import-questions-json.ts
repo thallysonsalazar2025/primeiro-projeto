@@ -68,6 +68,9 @@ async function main() {
   const raw = inputBytes.toString('utf8');
   const batch = validateQuestionImportBatch(JSON.parse(raw) as QuestionImportBatch);
   const verifiedAt = new Date();
+  const retrievedAt = batch.source.retrievedAt?.trim()
+    ? new Date(batch.source.retrievedAt.trim())
+    : verifiedAt;
 
   const board = await prisma.examBoard.upsert({
     where: { acronym: batch.board.acronym.trim().toUpperCase() },
@@ -275,7 +278,7 @@ async function main() {
           license: batch.source.license?.trim() || null,
           sourceHash: nextProvenanceHash(provenance.sourceHash, incomingSourceHash),
           notes: batch.source.notes?.trim() || null,
-          retrievedAt: verifiedAt,
+          retrievedAt,
         },
       });
     } else {
@@ -287,7 +290,7 @@ async function main() {
           license: batch.source.license?.trim() || null,
           sourceHash: incomingSourceHash,
           notes: batch.source.notes?.trim() || null,
-          retrievedAt: verifiedAt,
+          retrievedAt,
         },
       });
     }
