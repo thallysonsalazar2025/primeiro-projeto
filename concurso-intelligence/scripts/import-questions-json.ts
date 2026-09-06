@@ -9,6 +9,7 @@ import {
   nextProvenanceHash,
   shouldCreateProvenanceRevision,
 } from '../src/lib/question-provenance.ts';
+import { questionSourceMetadataUpdate } from '../src/lib/question-source-metadata.ts';
 import { sanitizeReportSourceUrl } from '../src/lib/report-source-url.ts';
 import {
   validateQuestionImportBatch,
@@ -165,9 +166,8 @@ async function main() {
       ...(hasSubject ? { subjectId: subject?.id ?? null } : {}),
       ...(hasTopic ? { topicId: topic?.id ?? null } : {}),
       ...(hasExplanation ? { explanation: question.explanation?.trim() || null } : {}),
+      ...questionSourceMetadataUpdate(question),
       sourceUrl: batch.source.url,
-      sourcePage: question.sourcePage ?? null,
-      sourceLabel: question.sourceLabel?.trim() || null,
       lastVerifiedAt: verifiedAt,
     };
     const createData = {
