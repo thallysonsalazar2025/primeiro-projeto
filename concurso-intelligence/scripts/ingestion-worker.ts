@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdir, readdir, rename, stat, utimes, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
+import { isIngestionClaimContention } from '../src/lib/ingestion-claim.ts';
 import { ingestionHeartbeatMs } from '../src/lib/ingestion-heartbeat.ts';
 import {
   parseMaxIngestionFileBytes,
@@ -61,13 +62,28 @@ async function moveToBucket(filePath: string, kind: ImportKind, bucket: 'process
   return destination;
 }
 
+async function sourcePathDisappeared(filePath: string) {
+  try {
+    await stat(filePath);
+    return false;
+  } catch (error) {
+    if (isMissingFile(error)) return true;
+    throw error;
+  }
+}
+
 async function claimFile(filePath: string, kind: ImportKind) {
   const processingDir = join(inboxRoot, 'processing', kind);
   await mkdir(processingDir, { recursive: true });
 
   const claimedPath = join(processingDir, `${Date.now()}-${process.pid}-${basename(filePath)}`);
-  await rename(filePath, claimedPath);
-  return claimedPath;
+  try {
+    await rename(filePath, claimedPath);
+    return claimedPath;
+  } catch (error) {
+    if (isIngestionClaimContention(error) && await sourcePathDisappeared(filePath)) return null;
+    throw error;
+  }
 }
 
 function runImporter(importer: string, filePath: string) {
@@ -202,13 +218,18 @@ async function processKind(kind: ImportKind) {
   let succeeded = true;
 
   for (const filePath of files) {
-    let claimedPath: string;
+    let claimedPath: string | null;
     try {
       claimedPath = await claimFile(filePath, kind);
     } catch (error) {
       console.error(`[ingestion-worker] falha ao reivindicar arquivo; lote permanece na fila: ${filePath}`);
       console.error(error instanceof Error ? error.message : error);
       succeeded = false;
+      continue;
+    }
+
+    if (!claimedPath) {
+      console.warn(`[ingestion-worker] lote já reivindicado por outro worker: ${filePath}`);
       continue;
     }
 
