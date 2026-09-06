@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { questionFingerprint } from './question-fingerprint.ts';
+import { claimQuestionFingerprint, questionFingerprint } from './question-fingerprint.ts';
 
 const baseQuestion = {
   board: 'FGV',
@@ -47,4 +47,13 @@ test('altera a fingerprint quando o conteúdo relevante muda', () => {
   };
 
   assert.notEqual(questionFingerprint(changed), questionFingerprint(baseQuestion));
+});
+
+test('reivindica uma fingerprint apenas na primeira ocorrência do lote', () => {
+  const seen = new Set<string>();
+  const fingerprint = questionFingerprint({ ...baseQuestion, number: null });
+
+  assert.equal(claimQuestionFingerprint(seen, fingerprint), true);
+  assert.equal(claimQuestionFingerprint(seen, fingerprint), false);
+  assert.deepEqual([...seen], [fingerprint]);
 });
