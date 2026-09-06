@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   latestProvenanceRetrievedAt,
   nextProvenanceHash,
+  nextProvenanceOptionalMetadata,
   shouldCreateProvenanceRevision,
 } from './question-provenance.ts';
 
@@ -22,6 +23,17 @@ test('does not invent a revision when either side has no hash', () => {
 test('keeps the last known hash when a later batch omits it', () => {
   assert.equal(nextProvenanceHash('a'.repeat(64), null), 'a'.repeat(64));
   assert.equal(nextProvenanceHash(null, 'b'.repeat(64)), 'b'.repeat(64));
+});
+
+test('preserves optional provenance metadata when an incremental batch omits it', () => {
+  assert.equal(nextProvenanceOptionalMetadata('CC-BY-4.0', undefined, false), 'CC-BY-4.0');
+  assert.equal(nextProvenanceOptionalMetadata('audited', undefined, false), 'audited');
+});
+
+test('allows explicit provenance metadata replacement and clearing', () => {
+  assert.equal(nextProvenanceOptionalMetadata('old', '  new  ', true), 'new');
+  assert.equal(nextProvenanceOptionalMetadata('old', null, true), null);
+  assert.equal(nextProvenanceOptionalMetadata('old', '   ', true), null);
 });
 
 test('never moves an existing provenance retrieval timestamp backwards', () => {
