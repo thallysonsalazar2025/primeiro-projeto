@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { open, readFile, writeFile } from 'node:fs/promises';
 import { AnswerKeyKind, Prisma, PrismaClient, QuestionStatus, SourceType } from '@prisma/client';
 import { serializeIngestionReport, type IngestionReport } from '../src/lib/ingestion-report.ts';
-import { questionFingerprint } from '../src/lib/question-fingerprint.ts';
+import { claimQuestionFingerprint, questionFingerprint } from '../src/lib/question-fingerprint.ts';
 import {
   nextProvenanceHash,
   shouldCreateProvenanceRevision,
@@ -133,9 +133,10 @@ async function main() {
       })),
     });
 
-    const duplicateInBatch = seenFingerprints.has(fingerprint);
-    if (duplicateInBatch) duplicates += 1;
-    else seenFingerprints.add(fingerprint);
+    if (!claimQuestionFingerprint(seenFingerprints, fingerprint)) {
+      duplicates += 1;
+      continue;
+    }
 
     const subject = question.subject?.trim()
       ? await prisma.subject.upsert({
@@ -291,10 +292,8 @@ async function main() {
       });
     }
 
-    if (!duplicateInBatch) {
-      if (wasCreated) created += 1;
-      else updated += 1;
-    }
+    if (wasCreated) created += 1;
+    else updated += 1;
   }
 
   const report: IngestionReport = {

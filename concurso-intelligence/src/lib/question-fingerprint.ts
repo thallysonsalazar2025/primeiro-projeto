@@ -34,3 +34,9 @@ export function questionFingerprint(input: QuestionFingerprintInput) {
 
   return createHash('sha256').update(canonical).digest('hex');
 }
+
+export function claimQuestionFingerprint(seen: Set<string>, fingerprint: string) {
+  if (seen.has(fingerprint)) return false;
+  seen.add(fingerprint);
+  return true;
+}
