@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdir, readdir, rename, stat, utimes, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
+import { isIngestionClaimContention } from '../src/lib/ingestion-claim.ts';
 import { ingestionHeartbeatMs } from '../src/lib/ingestion-heartbeat.ts';
 import {
   parseMaxIngestionFileBytes,
@@ -206,6 +207,10 @@ async function processKind(kind: ImportKind) {
     try {
       claimedPath = await claimFile(filePath, kind);
     } catch (error) {
+      if (isIngestionClaimContention(error)) {
+        console.warn(`[ingestion-worker] lote já reivindicado por outro worker: ${filePath}`);
+        continue;
+      }
       console.error(`[ingestion-worker] falha ao reivindicar arquivo; lote permanece na fila: ${filePath}`);
       console.error(error instanceof Error ? error.message : error);
       succeeded = false;
