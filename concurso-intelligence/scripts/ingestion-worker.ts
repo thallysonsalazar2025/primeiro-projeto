@@ -243,42 +243,44 @@ async function runCycleStage(label: string, stage: () => Promise<boolean>) {
   try {
     return await stage();
   } catch (error) {
-    console.error(`[ingestion-worker] etapa ${label} falhou; demais etapas do ciclo continuarão`);
+    console.error(`[ingestion-worker] etapa ${label} falhou; demais etapas do ciclo continuarão.`);
     console.error(error instanceof Error ? error.message : error);
     return false;
   }
 }
 
 async function runCycle() {
-  let succeeded = true;
-  const stages: Array<[string, () => Promise<boolean>]> = [
-    ['recovery/questions', () => recoverClaimedFiles('questions')],
-    ['recovery/rankings', () => recoverClaimedFiles('rankings')],
-    ['queue/questions', () => processKind('questions')],
-    ['queue/rankings', () => processKind('rankings')],
+  const results = [
+    await runCycleStage('recovery/questions', () => recoverClaimedFiles('questions')),
+    await runCycleStage('recovery/rankings', () => recoverClaimedFiles('rankings')),
+    await runCycleStage('queue/questions', () => processKind('questions')),
+    await runCycleStage('queue/rankings', () => processKind('rankings')),
   ];
-
-  for (const [label, stage] of stages) {
-    if (!(await runCycleStage(label, stage))) succeeded = false;
-  }
-
-  return succeeded;
+  return results.every(Boolean);
 }
 
 async function main() {
+  console.log(
+    `[ingestion-worker] inbox=${inboxRoot} interval=${intervalSeconds}s staleClaim=${staleClaimSeconds}s maxFileBytes=${maxFileBytes} oneShot=${oneShot}`,
+  );
+
   do {
-    const succeeded = await runCycle();
-    if (oneShot) {
-      if (!succeeded) process.exitCode = 1;
-      return;
+    try {
+      const cycleSucceeded = await runCycle();
+      if (oneShot && !cycleSucceeded) {
+        throw new Error('Ciclo de ingestão oneshot concluído com um ou mais lotes com falha.');
+      }
+    } catch (error) {
+      if (oneShot) throw error;
+      console.error('[ingestion-worker] falha inesperada no ciclo contínuo; tentando novamente no próximo intervalo.');
+      console.error(error instanceof Error ? error.message : error);
     }
 
-    await new Promise((resolve) => setTimeout(resolve, intervalSeconds * 1000));
-  } while (true);
+    if (!oneShot) await new Promise((resolve) => setTimeout(resolve, intervalSeconds * 1000));
+  } while (!oneShot);
 }
 
 main().catch((error) => {
-  console.error('[ingestion-worker] falha inesperada no worker');
   console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;
 });
