@@ -44,7 +44,7 @@ test('worker contínuo sobrevive a falha transitória de filesystem e processa o
 
   try {
     await waitUntil(
-      () => stderr.includes('falha inesperada no ciclo contínuo; tentando novamente no próximo intervalo'),
+      () => stderr.includes('etapa recovery/questions falhou; demais etapas do ciclo continuarão'),
       3_000,
     );
     assert.equal(child.exitCode, null, stderr);
