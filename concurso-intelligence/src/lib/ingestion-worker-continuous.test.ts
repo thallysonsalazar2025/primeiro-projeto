@@ -30,6 +30,7 @@ test('worker contínuo sobrevive a falha transitória de filesystem e processa o
         DATABASE_URL: process.env.DATABASE_URL || 'postgresql://127.0.0.1:1/invalid',
         INGESTION_INBOX_DIR: inbox,
         INGESTION_INTERVAL_SECONDS: '1',
+        INGESTION_ONESHOT: 'false',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     },
