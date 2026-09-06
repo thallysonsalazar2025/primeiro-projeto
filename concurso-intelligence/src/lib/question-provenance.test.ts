@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  latestProvenanceRetrievedAt,
   nextProvenanceHash,
   shouldCreateProvenanceRevision,
 } from './question-provenance.ts';
@@ -21,4 +22,11 @@ test('does not invent a revision when either side has no hash', () => {
 test('keeps the last known hash when a later batch omits it', () => {
   assert.equal(nextProvenanceHash('a'.repeat(64), null), 'a'.repeat(64));
   assert.equal(nextProvenanceHash(null, 'b'.repeat(64)), 'b'.repeat(64));
+});
+
+test('never moves an existing provenance retrieval timestamp backwards', () => {
+  const newer = new Date('2026-09-06T12:00:00.000Z');
+  const older = new Date('2026-09-05T12:00:00.000Z');
+  assert.equal(latestProvenanceRetrievedAt(newer, older), newer);
+  assert.equal(latestProvenanceRetrievedAt(older, newer), newer);
 });
