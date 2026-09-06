@@ -68,3 +68,13 @@ test('rejects a missing source URL with a domain-level message', () => {
   delete batch.source.url;
   assert.throws(() => validateQuestionImportBatch(asBatch(batch)), /source\.url não pode ser vazio/);
 });
+
+test('rejects malformed optional text fields before importer trim calls', () => {
+  const sourceHash = validBatch() as unknown as { source: Record<string, unknown> };
+  sourceHash.source.sourceHash = 123;
+  assert.throws(() => validateQuestionImportBatch(asBatch(sourceHash)), /source\.sourceHash deve ser texto/);
+
+  const subject = validBatch() as unknown as { questions: Array<Record<string, unknown>> };
+  subject.questions[0].subject = { name: 'Tecnologia' };
+  assert.throws(() => validateQuestionImportBatch(asBatch(subject)), /questions\[0\]\.subject deve ser texto/);
+});
