@@ -1,3 +1,4 @@
+import { validateExternalSourceLicense } from './external-source-license.ts';
 import { validatePublicHttpUrl } from './source-url-security.ts';
 
 export const QUESTION_SOURCE_TYPES = [
@@ -118,6 +119,7 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
 
   requireNonBlank(batch.source.url, 'source.url');
   validateOptionalString(batch.source.license, 'source.license');
+  validateExternalSourceLicense(batch.source.type, batch.source.license);
   validateOptionalString(batch.source.notes, 'source.notes');
   validateOptionalIsoDateTime(batch.source.retrievedAt, 'source.retrievedAt');
   validatePublicHttpUrl(batch.source.url, 'source.url');
