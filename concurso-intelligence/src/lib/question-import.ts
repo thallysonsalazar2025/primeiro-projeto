@@ -86,6 +86,7 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
   }
 
   validatePublicHttpUrl(batch.source.url, 'source.url');
+  validateOptionalSha256(batch.source.sourceHash, 'source.sourceHash');
   if (batch.board.website?.trim()) {
     validatePublicHttpUrl(batch.board.website.trim(), 'board.website');
   }

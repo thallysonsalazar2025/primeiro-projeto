@@ -98,6 +98,20 @@ test('rejects malformed SHA-256 integrity metadata before persistence', () => {
   }
 });
 
+test('accepts a valid SHA-256 integrity hash for the provenance source', () => {
+  const batch = validBatch();
+  batch.source.sourceHash = 'b'.repeat(64);
+  assert.equal(validateQuestionImportBatch(batch), batch);
+});
+
+test('rejects malformed provenance source hashes before persistence', () => {
+  for (const sourceHash of ['abc123', 'z'.repeat(64), 'b'.repeat(63), 'b'.repeat(65)]) {
+    const batch = validBatch();
+    batch.source.sourceHash = sourceHash;
+    assert.throws(() => validateQuestionImportBatch(batch), /source\.sourceHash deve conter um SHA-256 hexadecimal de 64 caracteres/);
+  }
+});
+
 test('rejects duplicate choice labels case-insensitively', () => {
   const batch = validBatch();
   batch.questions[0].choices[1].label = 'a';
