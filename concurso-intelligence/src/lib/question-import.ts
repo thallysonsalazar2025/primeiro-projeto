@@ -60,11 +60,24 @@ export type QuestionImportBatch = {
   questions: ImportedQuestion[];
 };
 
-function requireNonBlank(value: string, field: string) {
-  if (!value.trim()) throw new Error(`${field} não pode ser vazio`);
+function requireRecord(value: unknown, field: string): asserts value is Record<string, unknown> {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${field} deve ser um objeto`);
+  }
 }
 
-function validateOptionalSha256(value: string | null | undefined, field: string) {
+function requireNonBlank(value: unknown, field: string): asserts value is string {
+  if (typeof value !== 'string' || !value.trim()) throw new Error(`${field} não pode ser vazio`);
+}
+
+function validateOptionalString(value: unknown, field: string): asserts value is string | null | undefined {
+  if (value != null && typeof value !== 'string') {
+    throw new Error(`${field} deve ser texto`);
+  }
+}
+
+function validateOptionalSha256(value: unknown, field: string) {
+  validateOptionalString(value, field);
   if (value == null || !value.trim()) return;
   if (!/^[a-fA-F0-9]{64}$/.test(value.trim())) {
     throw new Error(`${field} deve conter um SHA-256 hexadecimal de 64 caracteres`);
@@ -72,9 +85,17 @@ function validateOptionalSha256(value: string | null | undefined, field: string)
 }
 
 export function validateQuestionImportBatch(batch: QuestionImportBatch) {
+  requireRecord(batch, 'batch');
+  requireRecord(batch.source, 'source');
+  requireRecord(batch.board, 'board');
+  requireRecord(batch.exam, 'exam');
+  if (!Array.isArray(batch.questions)) throw new Error('questions deve ser uma lista');
+
   requireNonBlank(batch.board.acronym, 'board.acronym');
   requireNonBlank(batch.board.name, 'board.name');
   requireNonBlank(batch.exam.title, 'exam.title');
+  validateOptionalString(batch.board.website, 'board.website');
+  validateOptionalString(batch.exam.sourceDocument, 'exam.sourceDocument');
 
   if (!Number.isInteger(batch.exam.year) || batch.exam.year < 1900 || batch.exam.year > 2200) {
     throw new Error('exam.year inválido');
@@ -85,6 +106,9 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
     throw new Error(`source.type inválido: ${batch.source.type}`);
   }
 
+  requireNonBlank(batch.source.url, 'source.url');
+  validateOptionalString(batch.source.license, 'source.license');
+  validateOptionalString(batch.source.notes, 'source.notes');
   validatePublicHttpUrl(batch.source.url, 'source.url');
   validateOptionalSha256(batch.source.sourceHash, 'source.sourceHash');
   if (batch.board.website?.trim()) {
@@ -99,7 +123,13 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
   const seenQuestionNumbers = new Set<number>();
   for (const [index, question] of batch.questions.entries()) {
     const prefix = `questions[${index}]`;
+    requireRecord(question, prefix);
     requireNonBlank(question.statement, `${prefix}.statement`);
+    validateOptionalString(question.explanation, `${prefix}.explanation`);
+    validateOptionalString(question.subject, `${prefix}.subject`);
+    validateOptionalString(question.topic, `${prefix}.topic`);
+    validateOptionalString(question.sourceLabel, `${prefix}.sourceLabel`);
+    if (!Array.isArray(question.choices)) throw new Error(`${prefix}.choices deve ser uma lista`);
     if (question.number != null && (!Number.isInteger(question.number) || question.number <= 0)) {
       throw new Error(`${prefix}.number deve ser inteiro positivo`);
     }
@@ -124,9 +154,13 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
     }
 
     const labels = new Set<string>();
-    for (const choice of question.choices) {
+    for (const [choiceIndex, choice] of question.choices.entries()) {
+      requireRecord(choice, `${prefix}.choices[${choiceIndex}]`);
       requireNonBlank(choice.label, `${prefix}.choices.label`);
       requireNonBlank(choice.text, `${prefix}.choices.text`);
+      if (typeof choice.isCorrect !== 'boolean') {
+        throw new Error(`${prefix}.choices[${choiceIndex}].isCorrect deve ser booleano`);
+      }
       const normalizedLabel = choice.label.trim().toUpperCase();
       if (labels.has(normalizedLabel)) throw new Error(`${prefix}.choices contém label duplicado: ${choice.label}`);
       labels.add(normalizedLabel);
