@@ -218,17 +218,24 @@ async function processKind(kind: ImportKind) {
   return succeeded;
 }
 
-async function recoverInterruptedBatches() {
-  const questionsSucceeded = await recoverClaimedFiles('questions');
-  const rankingsSucceeded = await recoverClaimedFiles('rankings');
-  return questionsSucceeded && rankingsSucceeded;
+async function runCycleStage(label: string, stage: () => Promise<boolean>) {
+  try {
+    return await stage();
+  } catch (error) {
+    console.error(`[ingestion-worker] etapa ${label} falhou; demais etapas do ciclo continuarão.`);
+    console.error(error instanceof Error ? error.message : error);
+    return false;
+  }
 }
 
 async function runCycle() {
-  const recoverySucceeded = await recoverInterruptedBatches();
-  const questionsSucceeded = await processKind('questions');
-  const rankingsSucceeded = await processKind('rankings');
-  return recoverySucceeded && questionsSucceeded && rankingsSucceeded;
+  const results = [
+    await runCycleStage('recovery/questions', () => recoverClaimedFiles('questions')),
+    await runCycleStage('recovery/rankings', () => recoverClaimedFiles('rankings')),
+    await runCycleStage('queue/questions', () => processKind('questions')),
+    await runCycleStage('queue/rankings', () => processKind('rankings')),
+  ];
+  return results.every(Boolean);
 }
 
 async function main() {
