@@ -97,6 +97,7 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
     throw new Error(`source.type inválido: ${batch.source.type}`);
   }
 
+  requireNonBlank(batch.source.url, 'source.url');
   validatePublicHttpUrl(batch.source.url, 'source.url');
   validateOptionalSha256(batch.source.sourceHash, 'source.sourceHash');
   if (batch.board.website?.trim()) {
