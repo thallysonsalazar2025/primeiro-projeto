@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { open, readFile, writeFile } from 'node:fs/promises';
 import { AnswerKeyKind, Prisma, PrismaClient, QuestionStatus, SourceType } from '@prisma/client';
+import { nextExamSourceMetadata } from '../src/lib/exam-source-metadata.ts';
 import { serializeIngestionReport, type IngestionReport } from '../src/lib/ingestion-report.ts';
 import { claimQuestionFingerprint, questionFingerprint } from '../src/lib/question-fingerprint.ts';
 import {
@@ -99,8 +100,8 @@ async function main() {
         where: { id: existingExam.id },
         data: {
           sourceUrl: batch.source.url,
-          sourceDocument: batch.exam.sourceDocument?.trim() || null,
-          sourceSha256: batch.exam.sourceSha256?.trim() || null,
+          sourceDocument: nextExamSourceMetadata(existingExam.sourceDocument, batch.exam.sourceDocument),
+          sourceSha256: nextExamSourceMetadata(existingExam.sourceSha256, batch.exam.sourceSha256),
         },
       })
     : await prisma.exam.create({
