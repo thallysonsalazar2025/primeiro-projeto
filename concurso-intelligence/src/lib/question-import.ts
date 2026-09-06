@@ -45,6 +45,7 @@ export type QuestionImportBatch = {
     license?: string | null;
     sourceHash?: string | null;
     notes?: string | null;
+    retrievedAt?: string | null;
   };
   board: {
     acronym: string;
@@ -84,6 +85,15 @@ function validateOptionalSha256(value: unknown, field: string) {
   }
 }
 
+function validateOptionalIsoDateTime(value: unknown, field: string) {
+  validateOptionalString(value, field);
+  if (value == null || !value.trim()) return;
+  const normalized = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(normalized) || Number.isNaN(Date.parse(normalized))) {
+    throw new Error(`${field} deve estar em ISO-8601 UTC`);
+  }
+}
+
 export function validateQuestionImportBatch(batch: QuestionImportBatch) {
   requireRecord(batch, 'batch');
   requireRecord(batch.source, 'source');
@@ -109,6 +119,7 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
   requireNonBlank(batch.source.url, 'source.url');
   validateOptionalString(batch.source.license, 'source.license');
   validateOptionalString(batch.source.notes, 'source.notes');
+  validateOptionalIsoDateTime(batch.source.retrievedAt, 'source.retrievedAt');
   validatePublicHttpUrl(batch.source.url, 'source.url');
   validateOptionalSha256(batch.source.sourceHash, 'source.sourceHash');
   if (batch.board.website?.trim()) {

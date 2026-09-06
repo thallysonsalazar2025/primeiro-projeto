@@ -14,3 +14,9 @@ export function nextProvenanceHash(
 ) {
   return incomingSourceHash?.trim() || existingSourceHash?.trim() || null;
 }
+
+export function latestProvenanceRetrievedAt(existingRetrievedAt: Date, incomingRetrievedAt: Date) {
+  return existingRetrievedAt.getTime() >= incomingRetrievedAt.getTime()
+    ? existingRetrievedAt
+    : incomingRetrievedAt;
+}
