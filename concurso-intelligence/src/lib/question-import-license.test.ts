@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { validateQuestionImportBatch, type QuestionImportBatch } from './question-import.ts';
 
+const SOURCE_HASH = 'a'.repeat(64);
+
 function batchWithSource(type: QuestionImportBatch['source']['type'], license?: string | null): QuestionImportBatch {
   return {
     source: {
@@ -9,6 +11,7 @@ function batchWithSource(type: QuestionImportBatch['source']['type'], license?: 
       url: type === 'GITHUB_REPOSITORY'
         ? 'https://github.com/example/public-question-bank'
         : 'https://dados.example.gov.br/questions.json',
+      sourceHash: SOURCE_HASH,
       ...(license === undefined ? {} : { license }),
     },
     board: { acronym: 'TEST', name: 'Banca de teste' },
@@ -35,7 +38,7 @@ test('batch validation rejects reusable external sources without declared licens
   }
 });
 
-test('batch validation accepts reusable external sources with declared license', () => {
+test('batch validation accepts reusable external sources with declared license and pinned hash', () => {
   assert.doesNotThrow(() => validateQuestionImportBatch(batchWithSource('OPEN_DATASET', 'CC-BY-4.0')));
   assert.doesNotThrow(() => validateQuestionImportBatch(batchWithSource('GITHUB_REPOSITORY', 'MIT')));
 });
