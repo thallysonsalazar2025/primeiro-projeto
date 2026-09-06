@@ -67,8 +67,13 @@ async function claimFile(filePath: string, kind: ImportKind) {
   await mkdir(processingDir, { recursive: true });
 
   const claimedPath = join(processingDir, `${Date.now()}-${process.pid}-${basename(filePath)}`);
-  await rename(filePath, claimedPath);
-  return claimedPath;
+  try {
+    await rename(filePath, claimedPath);
+    return claimedPath;
+  } catch (error) {
+    if (isIngestionClaimContention(error)) return null;
+    throw error;
+  }
 }
 
 function runImporter(importer: string, filePath: string) {
@@ -203,17 +208,18 @@ async function processKind(kind: ImportKind) {
   let succeeded = true;
 
   for (const filePath of files) {
-    let claimedPath: string;
+    let claimedPath: string | null;
     try {
       claimedPath = await claimFile(filePath, kind);
     } catch (error) {
-      if (isIngestionClaimContention(error)) {
-        console.warn(`[ingestion-worker] lote já reivindicado por outro worker: ${filePath}`);
-        continue;
-      }
       console.error(`[ingestion-worker] falha ao reivindicar arquivo; lote permanece na fila: ${filePath}`);
       console.error(error instanceof Error ? error.message : error);
       succeeded = false;
+      continue;
+    }
+
+    if (!claimedPath) {
+      console.warn(`[ingestion-worker] lote já reivindicado por outro worker: ${filePath}`);
       continue;
     }
 
