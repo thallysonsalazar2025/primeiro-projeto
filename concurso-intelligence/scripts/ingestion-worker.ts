@@ -237,10 +237,17 @@ async function main() {
   );
 
   do {
-    const cycleSucceeded = await runCycle();
-    if (oneShot && !cycleSucceeded) {
-      throw new Error('Ciclo de ingestão oneshot concluído com um ou mais lotes com falha.');
+    try {
+      const cycleSucceeded = await runCycle();
+      if (oneShot && !cycleSucceeded) {
+        throw new Error('Ciclo de ingestão oneshot concluído com um ou mais lotes com falha.');
+      }
+    } catch (error) {
+      if (oneShot) throw error;
+      console.error('[ingestion-worker] falha inesperada no ciclo contínuo; tentando novamente no próximo intervalo.');
+      console.error(error instanceof Error ? error.message : error);
     }
+
     if (!oneShot) await new Promise((resolve) => setTimeout(resolve, intervalSeconds * 1000));
   } while (!oneShot);
 }
