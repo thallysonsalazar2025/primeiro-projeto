@@ -60,8 +60,14 @@ export type QuestionImportBatch = {
   questions: ImportedQuestion[];
 };
 
-function requireNonBlank(value: string, field: string) {
-  if (!value.trim()) throw new Error(`${field} não pode ser vazio`);
+function requireRecord(value: unknown, field: string): asserts value is Record<string, unknown> {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${field} deve ser um objeto`);
+  }
+}
+
+function requireNonBlank(value: unknown, field: string): asserts value is string {
+  if (typeof value !== 'string' || !value.trim()) throw new Error(`${field} não pode ser vazio`);
 }
 
 function validateOptionalSha256(value: string | null | undefined, field: string) {
@@ -72,6 +78,12 @@ function validateOptionalSha256(value: string | null | undefined, field: string)
 }
 
 export function validateQuestionImportBatch(batch: QuestionImportBatch) {
+  requireRecord(batch, 'batch');
+  requireRecord(batch.source, 'source');
+  requireRecord(batch.board, 'board');
+  requireRecord(batch.exam, 'exam');
+  if (!Array.isArray(batch.questions)) throw new Error('questions deve ser uma lista');
+
   requireNonBlank(batch.board.acronym, 'board.acronym');
   requireNonBlank(batch.board.name, 'board.name');
   requireNonBlank(batch.exam.title, 'exam.title');
@@ -99,7 +111,9 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
   const seenQuestionNumbers = new Set<number>();
   for (const [index, question] of batch.questions.entries()) {
     const prefix = `questions[${index}]`;
+    requireRecord(question, prefix);
     requireNonBlank(question.statement, `${prefix}.statement`);
+    if (!Array.isArray(question.choices)) throw new Error(`${prefix}.choices deve ser uma lista`);
     if (question.number != null && (!Number.isInteger(question.number) || question.number <= 0)) {
       throw new Error(`${prefix}.number deve ser inteiro positivo`);
     }
@@ -124,9 +138,13 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
     }
 
     const labels = new Set<string>();
-    for (const choice of question.choices) {
+    for (const [choiceIndex, choice] of question.choices.entries()) {
+      requireRecord(choice, `${prefix}.choices[${choiceIndex}]`);
       requireNonBlank(choice.label, `${prefix}.choices.label`);
       requireNonBlank(choice.text, `${prefix}.choices.text`);
+      if (typeof choice.isCorrect !== 'boolean') {
+        throw new Error(`${prefix}.choices[${choiceIndex}].isCorrect deve ser booleano`);
+      }
       const normalizedLabel = choice.label.trim().toUpperCase();
       if (labels.has(normalizedLabel)) throw new Error(`${prefix}.choices contém label duplicado: ${choice.label}`);
       labels.add(normalizedLabel);
