@@ -6,6 +6,7 @@
       "url": "https://example.gov.br/concursos/questoes.json",
       "enqueue": "questions",
       "namePrefix": "official-questions-example",
+      "usageBasis": "official",
       "enabled": false
     },
     {
@@ -13,6 +14,7 @@
       "url": "https://example.gov.br/concursos/resultado.json",
       "enqueue": "rankings",
       "namePrefix": "official-ranking-example",
+      "usageBasis": "official",
       "enabled": false
     }
   ]
