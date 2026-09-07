@@ -146,14 +146,17 @@ async function fetchWithSafeRedirects(
   fetchImpl: FetchLike,
   resolveHost: ResolveHost,
   maxRedirects: number,
+  signal?: AbortSignal,
 ) {
   let current = source;
 
   for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
+    if (signal?.aborted) throw signal.reason;
     await assertPublicDestination(current, resolveHost);
     const response = await fetchImpl(current, {
       redirect: 'manual',
       headers: { 'user-agent': 'concurso-intelligence-ingestion/1.0' },
+      signal,
     });
 
     if (![301, 302, 303, 307, 308].includes(response.status)) {
@@ -177,6 +180,7 @@ export async function fetchExternalSource(
     fetchImpl?: FetchLike;
     resolveHost?: ResolveHost;
     maxRedirects?: number;
+    timeoutMs?: number;
     now?: () => Date;
   } = {},
 ): Promise<ExternalSourceFetchResult> {
@@ -189,38 +193,62 @@ export async function fetchExternalSource(
   if (!Number.isSafeInteger(maxRedirects) || maxRedirects < 0) {
     throw new Error('Limite de redirecionamentos inválido.');
   }
+  const timeoutMs = options.timeoutMs;
+  if (timeoutMs !== undefined && (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > 2_147_483_647)) {
+    throw new Error('Timeout da fonte externa inválido.');
+  }
 
   const fetchImpl = options.fetchImpl ?? fetch;
   const resolveHost = options.resolveHost ?? (options.fetchImpl ? async () => ['93.184.216.34'] : defaultResolveHost);
-  const { response, finalUrl } = await fetchWithSafeRedirects(source, fetchImpl, resolveHost, maxRedirects);
+  const controller = timeoutMs === undefined ? undefined : new AbortController();
+  const timeout = controller
+    ? setTimeout(() => controller.abort(new Error(`Fonte externa excedeu timeout de ${timeoutMs} ms.`)), timeoutMs)
+    : undefined;
 
-  if (!response.ok) {
-    throw new Error(`Falha ao baixar fonte externa: HTTP ${response.status}.`);
-  }
+  try {
+    const { response, finalUrl } = await fetchWithSafeRedirects(
+      source,
+      fetchImpl,
+      resolveHost,
+      maxRedirects,
+      controller?.signal,
+    );
 
-  const declaredLength = parseContentLength(response);
-  if (declaredLength !== null && declaredLength > maxBytes) {
-    throw new Error(`Fonte externa excede o limite de ${maxBytes} bytes.`);
-  }
-
-  const bytes = await readWithinLimit(response, maxBytes);
-  const sha256 = createHash('sha256').update(bytes).digest('hex');
-  const expectedSha256 = options.expectedSha256?.trim().toLowerCase();
-  if (expectedSha256) {
-    if (!/^[a-f0-9]{64}$/.test(expectedSha256)) {
-      throw new Error('SHA-256 esperado inválido.');
+    if (!response.ok) {
+      throw new Error(`Falha ao baixar fonte externa: HTTP ${response.status}.`);
     }
-    if (sha256 !== expectedSha256) {
-      throw new Error(`SHA-256 divergente: esperado ${expectedSha256}, obtido ${sha256}.`);
-    }
-  }
 
-  return {
-    bytes,
-    sha256,
-    retrievedAt: (options.now ?? (() => new Date()))().toISOString(),
-    sourceUrl: source.toString(),
-    finalUrl: finalUrl.toString(),
-    contentType: response.headers.get('content-type'),
-  };
+    const declaredLength = parseContentLength(response);
+    if (declaredLength !== null && declaredLength > maxBytes) {
+      throw new Error(`Fonte externa excede o limite de ${maxBytes} bytes.`);
+    }
+
+    const bytes = await readWithinLimit(response, maxBytes);
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    const expectedSha256 = options.expectedSha256?.trim().toLowerCase();
+    if (expectedSha256) {
+      if (!/^[a-f0-9]{64}$/.test(expectedSha256)) {
+        throw new Error('SHA-256 esperado inválido.');
+      }
+      if (sha256 !== expectedSha256) {
+        throw new Error(`SHA-256 divergente: esperado ${expectedSha256}, obtido ${sha256}.`);
+      }
+    }
+
+    return {
+      bytes,
+      sha256,
+      retrievedAt: (options.now ?? (() => new Date()))().toISOString(),
+      sourceUrl: source.toString(),
+      finalUrl: finalUrl.toString(),
+      contentType: response.headers.get('content-type'),
+    };
+  } catch (error) {
+    if (controller?.signal.aborted) {
+      throw new Error(`Fonte externa excedeu timeout de ${timeoutMs} ms.`);
+    }
+    throw error;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }

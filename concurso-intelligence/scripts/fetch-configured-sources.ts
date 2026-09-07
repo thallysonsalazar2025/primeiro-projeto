@@ -3,13 +3,17 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseIngestionSourceRegistry } from '../src/lib/ingestion-source-registry.ts';
 import { runConfiguredIngestionSources } from '../src/lib/ingestion-source-runner.ts';
+import { parseIngestionSourceTimeoutMs } from '../src/lib/ingestion-source-timeout.ts';
 
-function runSource(args: string[]) {
+function runSource(args: string[], timeoutMs: number) {
   return new Promise<void>((resolveRun, rejectRun) => {
     const child = spawn(
       process.execPath,
       ['--experimental-strip-types', resolve('scripts/fetch-external-source.ts'), ...args],
-      { stdio: 'inherit', env: process.env },
+      {
+        stdio: 'inherit',
+        env: { ...process.env, INGESTION_SOURCE_TIMEOUT_MS: String(timeoutMs) },
+      },
     );
 
     child.once('error', rejectRun);
@@ -30,6 +34,7 @@ async function main() {
   }
 
   const registry = parseIngestionSourceRegistry(JSON.parse(await readFile(resolve(registryPath), 'utf8')));
+  const timeoutMs = parseIngestionSourceTimeoutMs(process.env.INGESTION_SOURCE_TIMEOUT_MS);
   const result = await runConfiguredIngestionSources(registry.sources, async (source) => {
     console.log(`[ingestion:sources] coletando ${source.id}`);
     const args = [
@@ -40,7 +45,7 @@ async function main() {
       source.namePrefix,
     ];
     if (source.expectedSha256) args.push('--sha256', source.expectedSha256);
-    await runSource(args);
+    await runSource(args, timeoutMs);
   });
 
   for (const failure of result.failures) {

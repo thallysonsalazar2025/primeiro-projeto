@@ -121,3 +121,21 @@ test('valida SHA-256 esperado quando informado', async () => {
     /SHA-256 divergente/,
   );
 });
+
+test('aborta somente a coleta de rede quando o timeout expira', async () => {
+  let observedSignal: AbortSignal | undefined;
+  await assert.rejects(
+    () => fetchExternalSource('https://example.org/slow.json', {
+      timeoutMs: 10,
+      fetchImpl: async (_input, init) => {
+        observedSignal = init?.signal ?? undefined;
+        await new Promise<never>((_resolve, reject) => {
+          observedSignal?.addEventListener('abort', () => reject(observedSignal?.reason), { once: true });
+        });
+        throw new Error('unreachable');
+      },
+    }),
+    /timeout de 10 ms/,
+  );
+  assert.equal(observedSignal?.aborted, true);
+});
