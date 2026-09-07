@@ -56,7 +56,7 @@ async function main() {
   const result = await fetchExternalSource(url, fetchOptions);
 
   if (enqueue) {
-    assertJsonEnqueuePayload(result.bytes, result.contentType);
+    assertJsonEnqueuePayload(result.bytes, result.contentType, enqueue);
   }
 
   const manifestBody = `${JSON.stringify({
