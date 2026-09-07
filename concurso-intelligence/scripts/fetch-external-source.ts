@@ -22,6 +22,10 @@ function parseKind(value: string | undefined): IngestionKind | undefined {
   throw new Error('--enqueue deve ser questions ou rankings.');
 }
 
+function isFileExistsError(error: unknown) {
+  return error instanceof Error && 'code' in error && error.code === 'EEXIST';
+}
+
 async function main() {
   const url = process.argv[2];
   const output = argValue('--output');
@@ -88,7 +92,17 @@ async function main() {
   }, null, 2)}\n`;
 
   if (enqueue) {
-    await publishAtomically(planned.outputPath, planned.manifestPath, result.bytes, manifestBody);
+    try {
+      await publishAtomically(planned.outputPath, planned.manifestPath, result.bytes, manifestBody);
+    } catch (error) {
+      if (namePrefix && isFileExistsError(error) && await hasPublishedSha(planned.manifestPath, result.sha256)) {
+        console.log(`Fonte publicada concorrentemente sem alteração: ${result.sourceUrl}`);
+        console.log(`SHA-256: ${result.sha256}`);
+        console.log(`Manifesto existente: ${planned.manifestPath}`);
+        return;
+      }
+      throw error;
+    }
   } else {
     await mkdir(dirname(planned.outputPath), { recursive: true });
     await mkdir(dirname(planned.manifestPath), { recursive: true });
