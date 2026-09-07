@@ -2,6 +2,10 @@ function normalizedContentType(contentType: string | null | undefined) {
   return contentType?.split(';', 1)[0]?.trim().toLowerCase() ?? '';
 }
 
+function hasUtf8Bom(bytes: Uint8Array) {
+  return bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
+}
+
 export function assertJsonEnqueuePayload(
   bytes: Uint8Array,
   contentType: string | null | undefined,
@@ -9,6 +13,10 @@ export function assertJsonEnqueuePayload(
   const mediaType = normalizedContentType(contentType);
   if (mediaType && mediaType !== 'application/json' && !mediaType.endsWith('+json')) {
     throw new Error(`Fonte para enqueue deve retornar JSON; Content-Type recebido: ${mediaType}.`);
+  }
+
+  if (hasUtf8Bom(bytes)) {
+    throw new Error('Fonte para enqueue deve conter JSON UTF-8 sem BOM.');
   }
 
   let parsed: unknown;
