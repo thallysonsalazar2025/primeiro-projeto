@@ -1,9 +1,12 @@
+export type IngestionUsageBasis = 'official' | 'open-data' | 'licensed';
+
 export type ConfiguredIngestionSource = {
   id: string;
   url: string;
   enqueue: 'questions' | 'rankings';
   namePrefix: string;
   expectedSha256?: string;
+  usageBasis?: IngestionUsageBasis;
   enabled: boolean;
 };
 
@@ -41,6 +44,14 @@ function assertExpectedSha256(value: unknown, label: string) {
   return value.toLowerCase();
 }
 
+function assertUsageBasis(value: unknown, label: string) {
+  if (value === undefined) return undefined;
+  if (value !== 'official' && value !== 'open-data' && value !== 'licensed') {
+    throw new Error(`${label} deve ser official, open-data ou licensed.`);
+  }
+  return value;
+}
+
 export function parseIngestionSourceRegistry(input: unknown): IngestionSourceRegistry {
   assertPlainObject(input, 'Registry');
   if (input.schemaVersion !== 1) throw new Error('schemaVersion deve ser 1.');
@@ -72,13 +83,20 @@ export function parseIngestionSourceRegistry(input: unknown): IngestionSourceReg
       throw new Error(`${label}.enabled deve ser booleano.`);
     }
 
+    const enabled = rawSource.enabled !== false;
+    const usageBasis = assertUsageBasis(rawSource.usageBasis, `${label}.usageBasis`);
+    if (enabled && !usageBasis) {
+      throw new Error(`${label}.usageBasis é obrigatório para fontes habilitadas.`);
+    }
+
     return {
       id,
       url: assertHttpsUrl(rawSource.url, `${label}.url`),
       enqueue,
       namePrefix,
       expectedSha256: assertExpectedSha256(rawSource.expectedSha256, `${label}.expectedSha256`),
-      enabled: rawSource.enabled !== false,
+      usageBasis,
+      enabled,
     } satisfies ConfiguredIngestionSource;
   });
 
