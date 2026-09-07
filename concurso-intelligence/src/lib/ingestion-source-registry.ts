@@ -18,9 +18,10 @@ function assertPlainObject(value: unknown, label: string): asserts value is Reco
   }
 }
 
-function assertSafeToken(value: unknown, label: string) {
-  if (typeof value !== 'string' || !/^[a-z0-9][a-z0-9._-]{0,79}$/i.test(value)) {
-    throw new Error(`${label} deve conter apenas letras, números, ponto, hífen ou underscore e ter até 80 caracteres.`);
+function assertSafeToken(value: unknown, label: string, maxLength: number) {
+  const tokenPattern = new RegExp(`^[a-z0-9][a-z0-9._-]{0,${maxLength - 1}}$`, 'i');
+  if (typeof value !== 'string' || !tokenPattern.test(value)) {
+    throw new Error(`${label} deve conter apenas letras, números, ponto, hífen ou underscore e ter até ${maxLength} caracteres.`);
   }
   return value;
 }
@@ -50,19 +51,20 @@ export function parseIngestionSourceRegistry(input: unknown): IngestionSourceReg
   const sources = input.sources.map((rawSource, index) => {
     const label = `sources[${index}]`;
     assertPlainObject(rawSource, label);
-    const id = assertSafeToken(rawSource.id, `${label}.id`);
-    if (ids.has(id)) throw new Error(`Fonte duplicada: ${id}.`);
-    ids.add(id);
+    const id = assertSafeToken(rawSource.id, `${label}.id`, 80);
+    const canonicalId = id.toLowerCase();
+    if (ids.has(canonicalId)) throw new Error(`Fonte duplicada: ${id}.`);
+    ids.add(canonicalId);
 
     const enqueue = rawSource.enqueue;
     if (enqueue !== 'questions' && enqueue !== 'rankings') {
       throw new Error(`${label}.enqueue deve ser questions ou rankings.`);
     }
 
-    const namePrefix = assertSafeToken(rawSource.namePrefix, `${label}.namePrefix`);
-    const queueKey = `${enqueue}:${namePrefix}`;
+    const namePrefix = assertSafeToken(rawSource.namePrefix, `${label}.namePrefix`, 64);
+    const queueKey = `${enqueue}:${namePrefix.toLowerCase()}`;
     if (queueKeys.has(queueKey)) {
-      throw new Error(`Prefixo duplicado para a fila: ${queueKey}.`);
+      throw new Error(`Prefixo duplicado para a fila: ${enqueue}:${namePrefix}.`);
     }
     queueKeys.add(queueKey);
 
