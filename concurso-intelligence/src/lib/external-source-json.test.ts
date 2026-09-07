@@ -28,6 +28,14 @@ test('rejeita bytes que não formam JSON válido', () => {
   );
 });
 
+test('rejeita BOM UTF-8 que os importadores não conseguem parsear', () => {
+  const payload = new Uint8Array([0xef, 0xbb, 0xbf, ...encode('{"questions":[]}')]);
+  assert.throws(
+    () => assertJsonEnqueuePayload(payload, 'application/json'),
+    /sem BOM/,
+  );
+});
+
 test('rejeita JSON escalar', () => {
   assert.throws(
     () => assertJsonEnqueuePayload(encode('42'), 'application/json'),
