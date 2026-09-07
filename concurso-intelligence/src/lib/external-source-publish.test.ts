@@ -3,7 +3,22 @@ import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { planEnqueuePaths, publishAtomically } from './external-source-publish.ts';
+import {
+  contentAddressedEnqueueName,
+  hasPublishedSha,
+  planEnqueuePaths,
+  publishAtomically,
+} from './external-source-publish.ts';
+
+test('gera nome determinístico por prefixo e SHA-256', () => {
+  const sha = 'A'.repeat(64);
+  assert.equal(contentAddressedEnqueueName('prova-sefaz-2026', sha), 'prova-sefaz-2026-aaaaaaaaaaaa.json');
+});
+
+test('rejeita prefixo inseguro ou SHA-256 inválido', () => {
+  assert.throws(() => contentAddressedEnqueueName('../prova', 'a'.repeat(64)), /Prefixo do lote/);
+  assert.throws(() => contentAddressedEnqueueName('prova', 'abc'), /SHA-256 inválido/);
+});
 
 test('planeja lote na fila e manifesto fora do diretório observado pelo worker', () => {
   const planned = planEnqueuePaths('/imports', 'questions', 'prova-2026.json');
@@ -24,11 +39,17 @@ test('publica manifesto e lote sem deixar arquivo parcial visível', async () =>
     planned.outputPath,
     planned.manifestPath,
     new TextEncoder().encode('{"questions":[]}'),
-    '{"schemaVersion":1}\n',
+    '{"schemaVersion":1,"sha256":"abc"}\n',
   );
 
   assert.equal(await readFile(planned.outputPath, 'utf8'), '{"questions":[]}');
-  assert.equal(await readFile(planned.manifestPath, 'utf8'), '{"schemaVersion":1}\n');
+  assert.equal(await readFile(planned.manifestPath, 'utf8'), '{"schemaVersion":1,"sha256":"abc"}\n');
+  assert.equal(await hasPublishedSha(planned.manifestPath, 'ABC'), true);
+});
+
+test('informa false quando ainda não existe manifesto', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'external-source-publish-missing-'));
+  assert.equal(await hasPublishedSha(join(root, 'missing.source.json'), 'a'.repeat(64)), false);
 });
 
 test('rejeita nome já publicado sem sobrescrever lote nem manifesto existentes', async () => {
