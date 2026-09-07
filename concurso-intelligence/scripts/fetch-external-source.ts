@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fetchExternalSource } from '../src/lib/external-source-fetch.ts';
+import { assertJsonEnqueuePayload } from '../src/lib/external-source-json.ts';
 import { parseMaxIngestionFileBytes } from '../src/lib/ingestion-file-size.ts';
 import {
   planEnqueuePaths,
@@ -53,6 +54,11 @@ async function main() {
       }
     : { expectedSha256 };
   const result = await fetchExternalSource(url, fetchOptions);
+
+  if (enqueue) {
+    assertJsonEnqueuePayload(result.bytes, result.contentType);
+  }
+
   const manifestBody = `${JSON.stringify({
     schemaVersion: 1,
     sourceUrl: result.sourceUrl,
