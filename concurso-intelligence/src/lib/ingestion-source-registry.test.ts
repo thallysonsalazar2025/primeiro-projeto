@@ -42,6 +42,34 @@ test('rejeita ids e prefixos de fila duplicados', () => {
   );
 });
 
+test('rejeita prefixos que colidem apenas por caixa', () => {
+  assert.throws(
+    () => parseIngestionSourceRegistry({
+      schemaVersion: 1,
+      sources: [
+        { id: 'a', url: 'https://example.com/a.json', enqueue: 'questions', namePrefix: 'Fonte' },
+        { id: 'b', url: 'https://example.com/b.json', enqueue: 'questions', namePrefix: 'fonte' },
+      ],
+    }),
+    /Prefixo duplicado/,
+  );
+});
+
+test('limita namePrefix ao contrato de 64 caracteres do publisher', () => {
+  assert.doesNotThrow(() => parseIngestionSourceRegistry({
+    schemaVersion: 1,
+    sources: [{ id: 'a', url: 'https://example.com/a.json', enqueue: 'questions', namePrefix: 'a'.repeat(64) }],
+  }));
+
+  assert.throws(
+    () => parseIngestionSourceRegistry({
+      schemaVersion: 1,
+      sources: [{ id: 'a', url: 'https://example.com/a.json', enqueue: 'questions', namePrefix: 'a'.repeat(65) }],
+    }),
+    /até 64 caracteres/,
+  );
+});
+
 test('valida SHA-256 opcional', () => {
   assert.throws(
     () => parseIngestionSourceRegistry({
