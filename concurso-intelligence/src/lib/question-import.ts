@@ -1,4 +1,8 @@
-import { validateExternalSourceHash, validateExternalSourceLicense } from './external-source-license.ts';
+import {
+  validateExternalSourceHash,
+  validateExternalSourceLicense,
+  validateExternalSourceRetrievedAt,
+} from './external-source-license.ts';
 import { validatePublicHttpUrl } from './source-url-security.ts';
 
 export const QUESTION_SOURCE_TYPES = [
@@ -122,6 +126,7 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
   validateExternalSourceLicense(batch.source.type, batch.source.license);
   validateOptionalString(batch.source.notes, 'source.notes');
   validateOptionalIsoDateTime(batch.source.retrievedAt, 'source.retrievedAt');
+  validateExternalSourceRetrievedAt(batch.source.type, batch.source.retrievedAt);
   validatePublicHttpUrl(batch.source.url, 'source.url');
   validateOptionalSha256(batch.source.sourceHash, 'source.sourceHash');
   validateExternalSourceHash(batch.source.type, batch.source.sourceHash);
