@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fetchExternalSource } from '../src/lib/external-source-fetch.ts';
 import { assertJsonEnqueuePayload } from '../src/lib/external-source-json.ts';
 import { parseMaxIngestionFileBytes } from '../src/lib/ingestion-file-size.ts';
+import { parseIngestionSourceTimeoutMs } from '../src/lib/ingestion-source-timeout.ts';
 import {
   contentAddressedEnqueueName,
   planEnqueuePaths,
@@ -49,12 +50,14 @@ async function main() {
     throw new Error('Use --name ou --name-prefix, não ambos.');
   }
 
+  const timeoutMs = parseIngestionSourceTimeoutMs(process.env.INGESTION_SOURCE_TIMEOUT_MS);
   const fetchOptions = enqueue
     ? {
         expectedSha256,
         maxBytes: parseMaxIngestionFileBytes(process.env.INGESTION_MAX_FILE_BYTES),
+        timeoutMs,
       }
-    : { expectedSha256 };
+    : { expectedSha256, timeoutMs };
   const result = await fetchExternalSource(url, fetchOptions);
 
   if (enqueue) {
