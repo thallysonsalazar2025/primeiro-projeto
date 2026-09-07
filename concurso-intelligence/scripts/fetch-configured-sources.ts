@@ -28,24 +28,42 @@ function runSource(args: string[], timeoutMs: number) {
 }
 
 async function main() {
-  const registryPath = process.argv[2];
-  if (!registryPath) {
-    throw new Error('Uso: npm run ingestion:sources -- <registry.json>');
+  const args = process.argv.slice(2);
+  const dryRun = args.includes('--dry-run');
+  const positionalArgs = args.filter((arg) => arg !== '--dry-run');
+  const registryPath = positionalArgs[0];
+
+  if (!registryPath || positionalArgs.length > 1) {
+    throw new Error('Uso: npm run ingestion:sources -- <registry.json> [--dry-run]');
   }
 
   const registry = parseIngestionSourceRegistry(JSON.parse(await readFile(resolve(registryPath), 'utf8')));
+  const enabledSources = registry.sources.filter((source) => source.enabled);
+
+  if (dryRun) {
+    console.log(
+      `[ingestion:sources] dry-run válido: ${enabledSources.length} habilitada(s), ${registry.sources.length - enabledSources.length} desabilitada(s).`,
+    );
+    for (const source of enabledSources) {
+      console.log(
+        `[ingestion:sources] pronta: ${source.id} -> ${source.enqueue}/${source.namePrefix}${source.expectedSha256 ? ' (SHA-256 fixado)' : ''}`,
+      );
+    }
+    return;
+  }
+
   const timeoutMs = parseIngestionSourceTimeoutMs(process.env.INGESTION_SOURCE_TIMEOUT_MS);
   const result = await runConfiguredIngestionSources(registry.sources, async (source) => {
     console.log(`[ingestion:sources] coletando ${source.id}`);
-    const args = [
+    const sourceArgs = [
       source.url,
       '--enqueue',
       source.enqueue,
       '--name-prefix',
       source.namePrefix,
     ];
-    if (source.expectedSha256) args.push('--sha256', source.expectedSha256);
-    await runSource(args, timeoutMs);
+    if (source.expectedSha256) sourceArgs.push('--sha256', source.expectedSha256);
+    await runSource(sourceArgs, timeoutMs);
   });
 
   for (const failure of result.failures) {
