@@ -43,6 +43,39 @@ function parseContentLength(response: Response) {
   return parsed;
 }
 
+async function readWithinLimit(response: Response, maxBytes: number) {
+  if (!response.body) return new Uint8Array();
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel('external source size limit exceeded').catch(() => undefined);
+        throw new Error(`Fonte externa excede o limite de ${maxBytes} bytes.`);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
 export async function fetchExternalSource(
   rawUrl: string,
   options: {
@@ -74,11 +107,7 @@ export async function fetchExternalSource(
     throw new Error(`Fonte externa excede o limite de ${maxBytes} bytes.`);
   }
 
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength > maxBytes) {
-    throw new Error(`Fonte externa excede o limite de ${maxBytes} bytes.`);
-  }
-
+  const bytes = await readWithinLimit(response, maxBytes);
   const sha256 = createHash('sha256').update(bytes).digest('hex');
   const expectedSha256 = options.expectedSha256?.trim().toLowerCase();
   if (expectedSha256) {
