@@ -75,7 +75,7 @@ test('grava e lê apenas publicação incremental concluída', async () => {
   assert.deepEqual(await readLatestPublication(latestPath), expected);
 });
 
-test('serializa duas publicações concorrentes do mesmo prefixo', async () => {
+test('serializa duas publicações concorrentes do mesmo prefixo sem exigir ordem de aquisição', async () => {
   const root = await mkdtemp(join(tmpdir(), 'external-source-lock-'));
   const lockPath = join(root, 'metadata', 'questions', 'prova.latest.lock');
   const events: string[] = [];
@@ -92,7 +92,11 @@ test('serializa duas publicações concorrentes do mesmo prefixo', async () => {
     }),
   ]);
 
-  assert.deepEqual(events, ['a:start', 'a:end', 'b:start', 'b:end']);
+  const observed = events.join(',');
+  assert.ok(
+    observed === 'a:start,a:end,b:start,b:end' || observed === 'b:start,b:end,a:start,a:end',
+    `esperava seções críticas serializadas, recebeu: ${observed}`,
+  );
 });
 
 test('rejeita nome já publicado sem sobrescrever lote nem manifesto existentes', async () => {
