@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { validateQuestionImportBatch, type QuestionImportBatch } from './question-import.ts';
 
+const RETRIEVED_AT = '2026-09-07T00:00:00Z';
+
 function batchWithSourceHash(
   type: QuestionImportBatch['source']['type'],
   sourceHash?: string | null,
@@ -13,6 +15,7 @@ function batchWithSourceHash(
         ? 'https://github.com/example/public-question-bank'
         : 'https://dados.example.gov.br/questions.json',
       license: type === 'GITHUB_REPOSITORY' ? 'MIT' : 'CC-BY-4.0',
+      retrievedAt: RETRIEVED_AT,
       ...(sourceHash === undefined ? {} : { sourceHash }),
     },
     board: { acronym: 'TEST', name: 'Banca de teste' },
