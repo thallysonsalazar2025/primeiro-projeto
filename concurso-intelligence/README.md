@@ -49,6 +49,33 @@ A regra é não copiar cegamente bancos de terceiros. O coletor deve priorizar f
 9. Marcar questões anuladas/outdated sem apagar o histórico.
 10. Publicar relatório de ingestão com incluídos, atualizados, duplicados e rejeitados.
 
+### Registry de fontes recorrentes
+
+O runner de ingestão aceita um registry JSON versionado. Use `config/ingestion-sources.example.json` como molde e mantenha as fontes desabilitadas até validar autorização/licença, formato e proveniência.
+
+Cada entrada possui:
+
+- `id`: identificador estável da fonte;
+- `url`: URL HTTPS pública da origem;
+- `enqueue`: `questions` ou `rankings`;
+- `namePrefix`: prefixo estável usado no armazenamento incremental;
+- `expectedSha256`: opcional, para fonte cujo conteúdo esperado é imutável;
+- `enabled`: somente `true` quando a fonte estiver pronta para coleta.
+
+Antes de habilitar uma fonte real, confirme que ela entrega JSON no schema esperado pelo importador correspondente. O coletor rejeita payload inválido antes do enqueue e registra o conteúdo de forma incremental por hash.
+
+Execução manual:
+
+```bash
+cp config/ingestion-sources.example.json config/ingestion-sources.local.json
+# edite somente com fontes oficiais/licenciadas validadas
+npm run ingestion:sources -- config/ingestion-sources.local.json
+```
+
+O timeout de cada coleta HTTP é controlado por `INGESTION_SOURCE_TIMEOUT_MS` (60.000 ms por padrão). O valor pode ser definido no `.env`. O timeout é cooperativo e não interrompe a fase de publicação/rollback depois que o conteúdo já foi obtido.
+
+Nunca versione credenciais, tokens ou URLs assinadas no registry. Fontes que exijam segredo devem receber um adaptador seguro separado, e não parâmetros sensíveis na query string.
+
 ## Estimativa de classificação
 
 ### Concurso com resultado oficial
@@ -100,6 +127,8 @@ SESSION_SECRET=troque-por-um-segredo-longo-e-aleatorio
 TRUSTED_IP_HEADER=x-forwarded-for
 # Opcional. Se vazio ou ausente, SESSION_SECRET é usado para o HMAC do IP.
 IP_HASH_SECRET=troque-por-outro-segredo-longo-e-aleatorio
+# Opcional. Timeout da fase de coleta HTTP das fontes recorrentes.
+INGESTION_SOURCE_TIMEOUT_MS=60000
 ```
 
 `TRUSTED_IP_HEADER` aceita somente `x-forwarded-for` ou `x-real-ip`. Sem configuração válida, nenhum hash de IP é armazenado.

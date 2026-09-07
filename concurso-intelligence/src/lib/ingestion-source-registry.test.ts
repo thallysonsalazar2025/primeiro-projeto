@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { parseIngestionSourceRegistry } from './ingestion-source-registry.ts';
 
@@ -86,4 +87,15 @@ test('valida SHA-256 opcional', () => {
     }),
     /SHA-256/,
   );
+});
+
+test('mantém o registry de exemplo sincronizado com o parser e seguro por padrão', async () => {
+  const raw = await readFile(new URL('../../config/ingestion-sources.example.json', import.meta.url), 'utf8');
+  const registry = parseIngestionSourceRegistry(JSON.parse(raw));
+
+  assert.equal(registry.schemaVersion, 1);
+  assert.ok(registry.sources.length >= 2);
+  assert.ok(registry.sources.every((source) => source.enabled === false));
+  assert.ok(registry.sources.some((source) => source.enqueue === 'questions'));
+  assert.ok(registry.sources.some((source) => source.enqueue === 'rankings'));
 });
