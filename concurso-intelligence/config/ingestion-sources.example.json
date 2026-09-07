@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "id": "official-questions-example",
+      "url": "https://example.gov.br/concursos/questoes.json",
+      "enqueue": "questions",
+      "namePrefix": "official-questions-example",
+      "enabled": false
+    },
+    {
+      "id": "official-ranking-example",
+      "url": "https://example.gov.br/concursos/resultado.json",
+      "enqueue": "rankings",
+      "namePrefix": "official-ranking-example",
+      "enabled": false
+    }
+  ]
+}
