@@ -19,6 +19,7 @@
     "db:import:questions": "node --experimental-strip-types scripts/import-questions-json.ts",
     "db:import:ranking": "node --experimental-strip-types scripts/import-official-ranking-json.ts",
     "ingestion:fetch": "node --experimental-strip-types scripts/fetch-external-source.ts",
+    "ingestion:sources": "node --experimental-strip-types scripts/fetch-configured-sources.ts",
     "worker:ingestion": "node --experimental-strip-types scripts/ingestion-worker.ts"
   },
   "dependencies": {
