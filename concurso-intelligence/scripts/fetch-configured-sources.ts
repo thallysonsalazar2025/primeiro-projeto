@@ -5,6 +5,8 @@ import { parseIngestionSourceRegistry } from '../src/lib/ingestion-source-regist
 import { runConfiguredIngestionSources } from '../src/lib/ingestion-source-runner.ts';
 import { parseIngestionSourceTimeoutMs } from '../src/lib/ingestion-source-timeout.ts';
 
+const SOURCE_TERMINATION_GRACE_MS = 2_000;
+
 function runSource(args: string[], timeoutMs: number) {
   return new Promise<void>((resolveRun, rejectRun) => {
     const child = spawn(
@@ -14,17 +16,24 @@ function runSource(args: string[], timeoutMs: number) {
     );
 
     let settled = false;
+    let timedOut = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let forceKillTimer: ReturnType<typeof setTimeout> | undefined;
     const finish = (callback: () => void) => {
       if (settled) return;
       settled = true;
       if (timer) clearTimeout(timer);
+      if (forceKillTimer) clearTimeout(forceKillTimer);
       callback();
     };
 
     child.once('error', (error) => finish(() => rejectRun(error)));
     child.once('exit', (code, signal) => {
       finish(() => {
+        if (timedOut) {
+          rejectRun(new Error(`Coleta excedeu timeout de ${timeoutMs} ms e foi encerrada.`));
+          return;
+        }
         if (code === 0) {
           resolveRun();
           return;
@@ -34,8 +43,12 @@ function runSource(args: string[], timeoutMs: number) {
     });
 
     timer = setTimeout(() => {
+      if (settled) return;
+      timedOut = true;
       child.kill('SIGTERM');
-      finish(() => rejectRun(new Error(`Coleta excedeu timeout de ${timeoutMs} ms.`)));
+      forceKillTimer = setTimeout(() => {
+        if (!settled) child.kill('SIGKILL');
+      }, SOURCE_TERMINATION_GRACE_MS);
     }, timeoutMs);
   });
 }
