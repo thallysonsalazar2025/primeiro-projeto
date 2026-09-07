@@ -28,6 +28,11 @@ export function assertJsonEnqueuePayload(
 export function assertJsonEnqueuePayload(
   bytes: Uint8Array,
   contentType: string | null | undefined,
+  kind: JsonEnqueueKind,
+): QuestionImportBatch | OfficialRankingImport;
+export function assertJsonEnqueuePayload(
+  bytes: Uint8Array,
+  contentType: string | null | undefined,
 ): unknown;
 export function assertJsonEnqueuePayload(
   bytes: Uint8Array,
