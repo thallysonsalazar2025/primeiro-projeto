@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { formatIngestionDryRun } from '../src/lib/ingestion-source-dry-run.ts';
 import { parseIngestionSourceRegistry } from '../src/lib/ingestion-source-registry.ts';
 import { runConfiguredIngestionSources } from '../src/lib/ingestion-source-runner.ts';
 import { parseIngestionSourceTimeoutMs } from '../src/lib/ingestion-source-timeout.ts';
@@ -38,16 +39,10 @@ async function main() {
   }
 
   const registry = parseIngestionSourceRegistry(JSON.parse(await readFile(resolve(registryPath), 'utf8')));
-  const enabledSources = registry.sources.filter((source) => source.enabled);
 
   if (dryRun) {
-    console.log(
-      `[ingestion:sources] dry-run válido: ${enabledSources.length} habilitada(s), ${registry.sources.length - enabledSources.length} desabilitada(s).`,
-    );
-    for (const source of enabledSources) {
-      console.log(
-        `[ingestion:sources] pronta: ${source.id} -> ${source.enqueue}/${source.namePrefix}${source.expectedSha256 ? ' (SHA-256 fixado)' : ''}`,
-      );
+    for (const line of formatIngestionDryRun(registry.sources)) {
+      console.log(line);
     }
     return;
   }
