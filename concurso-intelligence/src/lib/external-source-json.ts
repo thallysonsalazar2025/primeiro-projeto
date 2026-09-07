@@ -1,3 +1,8 @@
+import { parseOfficialRankingImport } from './official-ranking-import.ts';
+import { validateQuestionImportBatch, type QuestionImportBatch } from './question-import.ts';
+
+export type JsonEnqueueKind = 'questions' | 'rankings';
+
 function normalizedContentType(contentType: string | null | undefined) {
   return contentType?.split(';', 1)[0]?.trim().toLowerCase() ?? '';
 }
@@ -9,6 +14,7 @@ function hasUtf8Bom(bytes: Uint8Array) {
 export function assertJsonEnqueuePayload(
   bytes: Uint8Array,
   contentType: string | null | undefined,
+  kind?: JsonEnqueueKind,
 ) {
   const mediaType = normalizedContentType(contentType);
   if (mediaType && mediaType !== 'application/json' && !mediaType.endsWith('+json')) {
@@ -28,6 +34,13 @@ export function assertJsonEnqueuePayload(
 
   if (parsed === null || typeof parsed !== 'object') {
     throw new Error('Fonte para enqueue deve conter um objeto ou array JSON.');
+  }
+
+  if (kind === 'questions') {
+    return validateQuestionImportBatch(parsed as QuestionImportBatch);
+  }
+  if (kind === 'rankings') {
+    return parseOfficialRankingImport(parsed);
   }
 
   return parsed;
