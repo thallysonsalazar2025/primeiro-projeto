@@ -13,6 +13,10 @@ export function questionSourceRequiresContentHash(sourceType: string): sourceTyp
   return questionSourceRequiresLicense(sourceType);
 }
 
+export function questionSourceRequiresRetrievedAt(sourceType: string): sourceType is LicenseRequiredQuestionSourceType {
+  return questionSourceRequiresLicense(sourceType);
+}
+
 export function validateExternalSourceLicense(sourceType: string, license: string | null | undefined) {
   if (!questionSourceRequiresLicense(sourceType)) return;
 
@@ -26,5 +30,13 @@ export function validateExternalSourceHash(sourceType: string, sourceHash: strin
 
   if (!sourceHash?.trim()) {
     throw new Error(`source.sourceHash é obrigatório para fonte ${sourceType}`);
+  }
+}
+
+export function validateExternalSourceRetrievedAt(sourceType: string, retrievedAt: string | null | undefined) {
+  if (!questionSourceRequiresRetrievedAt(sourceType)) return;
+
+  if (!retrievedAt?.trim()) {
+    throw new Error(`source.retrievedAt é obrigatório para fonte ${sourceType}`);
   }
 }

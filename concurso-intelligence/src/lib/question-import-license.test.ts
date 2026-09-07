@@ -3,6 +3,7 @@ import test from 'node:test';
 import { validateQuestionImportBatch, type QuestionImportBatch } from './question-import.ts';
 
 const SOURCE_HASH = 'a'.repeat(64);
+const RETRIEVED_AT = '2026-09-07T00:00:00Z';
 
 function batchWithSource(type: QuestionImportBatch['source']['type'], license?: string | null): QuestionImportBatch {
   return {
@@ -12,6 +13,7 @@ function batchWithSource(type: QuestionImportBatch['source']['type'], license?: 
         ? 'https://github.com/example/public-question-bank'
         : 'https://dados.example.gov.br/questions.json',
       sourceHash: SOURCE_HASH,
+      retrievedAt: RETRIEVED_AT,
       ...(license === undefined ? {} : { license }),
     },
     board: { acronym: 'TEST', name: 'Banca de teste' },
