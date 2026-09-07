@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fetchExternalSource } from '../src/lib/external-source-fetch.ts';
+import { parseMaxIngestionFileBytes } from '../src/lib/ingestion-file-size.ts';
 import {
   planEnqueuePaths,
   publishAtomically,
@@ -45,7 +46,13 @@ async function main() {
         manifestPath: resolve(manifest ?? `${output}.source.json`),
       };
 
-  const result = await fetchExternalSource(url, { expectedSha256 });
+  const fetchOptions = enqueue
+    ? {
+        expectedSha256,
+        maxBytes: parseMaxIngestionFileBytes(process.env.INGESTION_MAX_FILE_BYTES),
+      }
+    : { expectedSha256 };
+  const result = await fetchExternalSource(url, fetchOptions);
   const manifestBody = `${JSON.stringify({
     schemaVersion: 1,
     sourceUrl: result.sourceUrl,
