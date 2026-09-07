@@ -1,4 +1,8 @@
-import { parseOfficialRankingImport } from './official-ranking-import.ts';
+import {
+  assertNoDuplicateRankingRows,
+  parseOfficialRankingImport,
+  type OfficialRankingImport,
+} from './official-ranking-import.ts';
 import { validateQuestionImportBatch, type QuestionImportBatch } from './question-import.ts';
 
 export type JsonEnqueueKind = 'questions' | 'rankings';
@@ -11,6 +15,20 @@ function hasUtf8Bom(bytes: Uint8Array) {
   return bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
 }
 
+export function assertJsonEnqueuePayload(
+  bytes: Uint8Array,
+  contentType: string | null | undefined,
+  kind: 'questions',
+): QuestionImportBatch;
+export function assertJsonEnqueuePayload(
+  bytes: Uint8Array,
+  contentType: string | null | undefined,
+  kind: 'rankings',
+): OfficialRankingImport;
+export function assertJsonEnqueuePayload(
+  bytes: Uint8Array,
+  contentType: string | null | undefined,
+): unknown;
 export function assertJsonEnqueuePayload(
   bytes: Uint8Array,
   contentType: string | null | undefined,
@@ -40,7 +58,9 @@ export function assertJsonEnqueuePayload(
     return validateQuestionImportBatch(parsed as QuestionImportBatch);
   }
   if (kind === 'rankings') {
-    return parseOfficialRankingImport(parsed);
+    const ranking = parseOfficialRankingImport(parsed);
+    assertNoDuplicateRankingRows(ranking);
+    return ranking;
   }
 
   return parsed;
