@@ -23,9 +23,59 @@ test('baixa fonte HTTPS e registra hash/data auditáveis', async () => {
   assert.equal(result.contentType, 'application/json');
 });
 
-test('rejeita protocolo não HTTPS e localhost', async () => {
+test('rejeita protocolo não HTTPS, localhost e IPs privados', async () => {
   await assert.rejects(() => fetchExternalSource('http://example.org/a'), /HTTPS/);
-  await assert.rejects(() => fetchExternalSource('https://localhost/a'), /localhost/);
+  await assert.rejects(() => fetchExternalSource('https://localhost/a'), /local ou privado/);
+  await assert.rejects(() => fetchExternalSource('https://127.0.0.1/a'), /local ou privado/);
+  await assert.rejects(() => fetchExternalSource('https://169.254.169.254/latest/meta-data'), /local ou privado/);
+  await assert.rejects(() => fetchExternalSource('https://10.0.0.1/a'), /local ou privado/);
+});
+
+test('rejeita hostname público que resolva para rede privada', async () => {
+  await assert.rejects(
+    () => fetchExternalSource('https://example.org/a', {
+      fetchImpl: async () => response('abc'),
+      resolveHost: async () => ['192.168.1.10'],
+    }),
+    /resolver para IP local ou privado/,
+  );
+});
+
+test('valida cada destino de redirecionamento antes de segui-lo', async () => {
+  let calls = 0;
+  await assert.rejects(
+    () => fetchExternalSource('https://example.org/a', {
+      fetchImpl: async () => {
+        calls += 1;
+        return response('', {
+          status: 302,
+          headers: { location: 'https://169.254.169.254/latest/meta-data' },
+        });
+      },
+    }),
+    /local ou privado/,
+  );
+  assert.equal(calls, 1);
+});
+
+test('segue redirecionamento HTTPS público dentro do limite', async () => {
+  const requested: string[] = [];
+  const result = await fetchExternalSource('https://example.org/a', {
+    fetchImpl: async (input) => {
+      const url = input.toString();
+      requested.push(url);
+      if (url === 'https://example.org/a') {
+        return response('', {
+          status: 302,
+          headers: { location: 'https://cdn.example.org/data.json' },
+        });
+      }
+      return response('abc', { status: 200 });
+    },
+  });
+
+  assert.deepEqual(requested, ['https://example.org/a', 'https://cdn.example.org/data.json']);
+  assert.equal(result.finalUrl, 'https://cdn.example.org/data.json');
 });
 
 test('rejeita resposta HTTP sem sucesso', async () => {
