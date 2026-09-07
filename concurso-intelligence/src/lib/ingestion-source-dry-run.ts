@@ -8,7 +8,7 @@ export function formatIngestionDryRun(sources: ConfiguredIngestionSource[]) {
 
   for (const source of enabledSources) {
     lines.push(
-      `[ingestion:sources] pronta: ${source.id} -> ${source.enqueue}/${source.namePrefix}${source.expectedSha256 ? ' (SHA-256 fixado)' : ''}`,
+      `[ingestion:sources] pronta: ${source.id} -> ${source.enqueue}/${source.namePrefix} (uso: ${source.usageBasis ?? 'não-informado'}${source.expectedSha256 ? ', SHA-256 fixado' : ''})`,
     );
   }
 
