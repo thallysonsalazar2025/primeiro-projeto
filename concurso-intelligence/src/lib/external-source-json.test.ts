@@ -117,3 +117,14 @@ test('rejeita lote de questões quando destino é a fila rankings', () => {
     () => assertJsonEnqueuePayload(encode(JSON.stringify(questionBatch)), 'application/json', 'rankings'),
   );
 });
+
+test('rejeita ranking com identidade duplicada antes de publicar', () => {
+  const duplicateRanking = {
+    ...rankingBatch,
+    rows: [rankingBatch.rows[0], { ...rankingBatch.rows[0], score: 89, rank: 2 }],
+  };
+  assert.throws(
+    () => assertJsonEnqueuePayload(encode(JSON.stringify(duplicateRanking)), 'application/json', 'rankings'),
+    /Linha duplicada no arquivo/,
+  );
+});
