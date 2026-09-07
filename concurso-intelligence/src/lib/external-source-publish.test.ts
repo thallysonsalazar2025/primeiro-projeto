@@ -30,3 +30,28 @@ test('publica manifesto e lote sem deixar arquivo parcial visível', async () =>
   assert.equal(await readFile(planned.outputPath, 'utf8'), '{"questions":[]}');
   assert.equal(await readFile(planned.manifestPath, 'utf8'), '{"schemaVersion":1}\n');
 });
+
+test('rejeita nome já publicado sem sobrescrever lote nem manifesto existentes', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'external-source-publish-duplicate-'));
+  const planned = planEnqueuePaths(root, 'questions', 'lote.json');
+
+  await publishAtomically(
+    planned.outputPath,
+    planned.manifestPath,
+    new TextEncoder().encode('{"questions":[{"id":"original"}]}'),
+    '{"schemaVersion":1,"sha256":"original"}\n',
+  );
+
+  await assert.rejects(
+    publishAtomically(
+      planned.outputPath,
+      planned.manifestPath,
+      new TextEncoder().encode('{"questions":[{"id":"novo"}]}'),
+      '{"schemaVersion":1,"sha256":"novo"}\n',
+    ),
+    (error: unknown) => error instanceof Error && 'code' in error && error.code === 'EEXIST',
+  );
+
+  assert.equal(await readFile(planned.outputPath, 'utf8'), '{"questions":[{"id":"original"}]}');
+  assert.equal(await readFile(planned.manifestPath, 'utf8'), '{"schemaVersion":1,"sha256":"original"}\n');
+});
