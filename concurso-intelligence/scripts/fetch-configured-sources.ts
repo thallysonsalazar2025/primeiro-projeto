@@ -3,8 +3,9 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseIngestionSourceRegistry } from '../src/lib/ingestion-source-registry.ts';
 import { runConfiguredIngestionSources } from '../src/lib/ingestion-source-runner.ts';
+import { parseIngestionSourceTimeoutMs } from '../src/lib/ingestion-source-timeout.ts';
 
-function runSource(args: string[]) {
+function runSource(args: string[], timeoutMs: number) {
   return new Promise<void>((resolveRun, rejectRun) => {
     const child = spawn(
       process.execPath,
@@ -12,14 +13,30 @@ function runSource(args: string[]) {
       { stdio: 'inherit', env: process.env },
     );
 
-    child.once('error', rejectRun);
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      callback();
+    };
+
+    child.once('error', (error) => finish(() => rejectRun(error)));
     child.once('exit', (code, signal) => {
-      if (code === 0) {
-        resolveRun();
-        return;
-      }
-      rejectRun(new Error(`Coleta terminou com ${signal ? `signal ${signal}` : `exit code ${code}`}.`));
+      finish(() => {
+        if (code === 0) {
+          resolveRun();
+          return;
+        }
+        rejectRun(new Error(`Coleta terminou com ${signal ? `signal ${signal}` : `exit code ${code}`}.`));
+      });
     });
+
+    timer = setTimeout(() => {
+      child.kill('SIGTERM');
+      finish(() => rejectRun(new Error(`Coleta excedeu timeout de ${timeoutMs} ms.`)));
+    }, timeoutMs);
   });
 }
 
@@ -30,6 +47,7 @@ async function main() {
   }
 
   const registry = parseIngestionSourceRegistry(JSON.parse(await readFile(resolve(registryPath), 'utf8')));
+  const timeoutMs = parseIngestionSourceTimeoutMs(process.env.INGESTION_SOURCE_TIMEOUT_MS);
   const result = await runConfiguredIngestionSources(registry.sources, async (source) => {
     console.log(`[ingestion:sources] coletando ${source.id}`);
     const args = [
@@ -40,7 +58,7 @@ async function main() {
       source.namePrefix,
     ];
     if (source.expectedSha256) args.push('--sha256', source.expectedSha256);
-    await runSource(args);
+    await runSource(args, timeoutMs);
   });
 
   for (const failure of result.failures) {
