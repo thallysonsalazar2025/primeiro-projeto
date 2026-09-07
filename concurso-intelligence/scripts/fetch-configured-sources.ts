@@ -5,51 +5,25 @@ import { parseIngestionSourceRegistry } from '../src/lib/ingestion-source-regist
 import { runConfiguredIngestionSources } from '../src/lib/ingestion-source-runner.ts';
 import { parseIngestionSourceTimeoutMs } from '../src/lib/ingestion-source-timeout.ts';
 
-const SOURCE_TERMINATION_GRACE_MS = 2_000;
-
 function runSource(args: string[], timeoutMs: number) {
   return new Promise<void>((resolveRun, rejectRun) => {
     const child = spawn(
       process.execPath,
       ['--experimental-strip-types', resolve('scripts/fetch-external-source.ts'), ...args],
-      { stdio: 'inherit', env: process.env },
+      {
+        stdio: 'inherit',
+        env: { ...process.env, INGESTION_SOURCE_TIMEOUT_MS: String(timeoutMs) },
+      },
     );
 
-    let settled = false;
-    let timedOut = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let forceKillTimer: ReturnType<typeof setTimeout> | undefined;
-    const finish = (callback: () => void) => {
-      if (settled) return;
-      settled = true;
-      if (timer) clearTimeout(timer);
-      if (forceKillTimer) clearTimeout(forceKillTimer);
-      callback();
-    };
-
-    child.once('error', (error) => finish(() => rejectRun(error)));
+    child.once('error', rejectRun);
     child.once('exit', (code, signal) => {
-      finish(() => {
-        if (timedOut) {
-          rejectRun(new Error(`Coleta excedeu timeout de ${timeoutMs} ms e foi encerrada.`));
-          return;
-        }
-        if (code === 0) {
-          resolveRun();
-          return;
-        }
-        rejectRun(new Error(`Coleta terminou com ${signal ? `signal ${signal}` : `exit code ${code}`}.`));
-      });
+      if (code === 0) {
+        resolveRun();
+        return;
+      }
+      rejectRun(new Error(`Coleta terminou com ${signal ? `signal ${signal}` : `exit code ${code}`}.`));
     });
-
-    timer = setTimeout(() => {
-      if (settled) return;
-      timedOut = true;
-      child.kill('SIGTERM');
-      forceKillTimer = setTimeout(() => {
-        if (!settled) child.kill('SIGKILL');
-      }, SOURCE_TERMINATION_GRACE_MS);
-    }, timeoutMs);
   });
 }
 
