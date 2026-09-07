@@ -1,10 +1,21 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fetchExternalSource } from '../src/lib/external-source-fetch.ts';
+import {
+  planEnqueuePaths,
+  publishAtomically,
+  type IngestionKind,
+} from '../src/lib/external-source-publish.ts';
 
 function argValue(flag: string) {
   const index = process.argv.indexOf(flag);
   return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
+function parseKind(value: string | undefined): IngestionKind | undefined {
+  if (!value) return undefined;
+  if (value === 'questions' || value === 'rankings') return value;
+  throw new Error('--enqueue deve ser questions ou rankings.');
 }
 
 async function main() {
@@ -12,38 +23,54 @@ async function main() {
   const output = argValue('--output');
   const expectedSha256 = argValue('--sha256');
   const manifest = argValue('--manifest');
+  const enqueue = parseKind(argValue('--enqueue'));
+  const name = argValue('--name');
 
-  if (!url || !output) {
+  if (!url || (!output && !enqueue) || (enqueue && !name)) {
     throw new Error(
-      'Uso: npm run ingestion:fetch -- <https-url> --output <arquivo> [--sha256 <sha256>] [--manifest <manifesto.json>]',
+      'Uso: npm run ingestion:fetch -- <https-url> (--output <arquivo> | --enqueue <questions|rankings> --name <lote.json>) [--sha256 <sha256>] [--manifest <manifesto.json>]',
     );
   }
+  if (output && enqueue) {
+    throw new Error('Use --output ou --enqueue, não ambos.');
+  }
+  if (enqueue && manifest) {
+    throw new Error('--manifest não é aceito com --enqueue; o manifesto é armazenado fora da fila automaticamente.');
+  }
 
-  const outputPath = resolve(output);
-  const manifestPath = resolve(manifest ?? `${output}.source.json`);
+  const planned = enqueue
+    ? planEnqueuePaths(process.env.INGESTION_INBOX_DIR?.trim() || '/imports', enqueue, name!)
+    : {
+        outputPath: resolve(output!),
+        manifestPath: resolve(manifest ?? `${output}.source.json`),
+      };
+
   const result = await fetchExternalSource(url, { expectedSha256 });
+  const manifestBody = `${JSON.stringify({
+    schemaVersion: 1,
+    sourceUrl: result.sourceUrl,
+    finalUrl: result.finalUrl,
+    retrievedAt: result.retrievedAt,
+    sha256: result.sha256,
+    contentType: result.contentType,
+    bytes: result.bytes.byteLength,
+    output: planned.outputPath,
+    enqueueKind: enqueue ?? null,
+  }, null, 2)}\n`;
 
-  await mkdir(dirname(outputPath), { recursive: true });
-  await mkdir(dirname(manifestPath), { recursive: true });
-  await writeFile(outputPath, result.bytes, { flag: 'wx' });
-  await writeFile(
-    manifestPath,
-    `${JSON.stringify({
-      schemaVersion: 1,
-      sourceUrl: result.sourceUrl,
-      finalUrl: result.finalUrl,
-      retrievedAt: result.retrievedAt,
-      sha256: result.sha256,
-      contentType: result.contentType,
-      bytes: result.bytes.byteLength,
-      output: outputPath,
-    }, null, 2)}\n`,
-    { encoding: 'utf8', flag: 'wx' },
-  );
+  if (enqueue) {
+    await publishAtomically(planned.outputPath, planned.manifestPath, result.bytes, manifestBody);
+  } else {
+    await mkdir(dirname(planned.outputPath), { recursive: true });
+    await mkdir(dirname(planned.manifestPath), { recursive: true });
+    await writeFile(planned.outputPath, result.bytes, { flag: 'wx' });
+    await writeFile(planned.manifestPath, manifestBody, { encoding: 'utf8', flag: 'wx' });
+  }
 
-  console.log(`Fonte externa coletada: ${outputPath}`);
+  console.log(`Fonte externa coletada: ${planned.outputPath}`);
   console.log(`SHA-256: ${result.sha256}`);
-  console.log(`Manifesto: ${manifestPath}`);
+  console.log(`Manifesto: ${planned.manifestPath}`);
+  if (enqueue) console.log(`Lote publicado na fila: ${enqueue}`);
 }
 
 main().catch((error) => {
