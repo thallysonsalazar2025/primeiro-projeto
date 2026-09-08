@@ -9,6 +9,7 @@ export type LatestPublication = {
   sha256: string;
   output: string;
   manifest: string;
+  usageBasis?: 'official' | 'open-data' | 'licensed' | null;
 };
 
 function validatePrefix(prefix: string) {
@@ -66,6 +67,11 @@ export async function readLatestPublication(latestPath: string): Promise<LatestP
       || !/^[a-f0-9]{64}$/i.test(parsed.sha256)
       || typeof parsed.output !== 'string'
       || typeof parsed.manifest !== 'string'
+      || (parsed.usageBasis !== undefined
+        && parsed.usageBasis !== null
+        && parsed.usageBasis !== 'official'
+        && parsed.usageBasis !== 'open-data'
+        && parsed.usageBasis !== 'licensed')
     ) {
       throw new Error(`Marcador de publicação incremental inválido: ${latestPath}`);
     }
@@ -128,8 +134,6 @@ export async function publishAtomically(
     await writeFile(outputTemp, bytes, { flag: 'wx' });
     await writeFile(manifestTemp, manifest, { encoding: 'utf8', flag: 'wx' });
 
-    // O lote fica visível antes do manifesto; a publicação incremental só é
-    // considerada concluída quando o marcador latest é gravado pelo chamador.
     await link(outputTemp, outputPath);
     outputPublished = true;
     await link(manifestTemp, manifestPath);
