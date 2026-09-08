@@ -31,6 +31,28 @@ test('rejeita protocolo não HTTPS, localhost e IPs privados', async () => {
   await assert.rejects(() => fetchExternalSource('https://10.0.0.1/a'), /local ou privado/);
 });
 
+test('rejeita parâmetros sensíveis tanto na URL inicial quanto em redirects', async () => {
+  await assert.rejects(
+    () => fetchExternalSource('https://example.org/a?access_token=secret'),
+    /parâmetro sensível: access_token/,
+  );
+
+  let calls = 0;
+  await assert.rejects(
+    () => fetchExternalSource('https://example.org/a', {
+      fetchImpl: async () => {
+        calls += 1;
+        return response('', {
+          status: 302,
+          headers: { location: 'https://cdn.example.org/data.json?clientSecret=secret' },
+        });
+      },
+    }),
+    /parâmetro sensível: clientSecret/,
+  );
+  assert.equal(calls, 1);
+});
+
 test('rejeita hostname público que resolva para rede privada', async () => {
   await assert.rejects(
     () => fetchExternalSource('https://example.org/a', {
