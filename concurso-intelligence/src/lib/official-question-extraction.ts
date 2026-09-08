@@ -49,7 +49,7 @@ function validateOptionalString(value: unknown, field: string): asserts value is
   if (value != null && typeof value !== 'string') throw new Error(`${field} deve ser texto`);
 }
 
-export function parseOfficialQuestionExtraction(input: unknown): OfficialQuestionExtraction {
+function parseOfficialQuestionExtraction(input: unknown): OfficialQuestionExtraction {
   requireRecord(input, 'extraction');
   requireRecord(input.source, 'source');
   requireRecord(input.board, 'board');
