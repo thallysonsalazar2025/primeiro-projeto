@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -59,7 +59,7 @@ test('publica lote e manifesto sem deixar arquivo parcial visível', async () =>
   assert.equal(await readFile(planned.manifestPath, 'utf8'), '{"schemaVersion":1,"sha256":"abc"}\n');
 });
 
-test('grava e lê apenas publicação incremental concluída', async () => {
+test('grava e lê publicação incremental com base de uso preservada', async () => {
   const root = await mkdtemp(join(tmpdir(), 'external-source-latest-'));
   const latestPath = join(root, 'metadata', 'questions', 'prova.latest.json');
   const expected = {
@@ -68,11 +68,31 @@ test('grava e lê apenas publicação incremental concluída', async () => {
     sha256: 'b'.repeat(64),
     output: join(root, 'questions', 'lote.json'),
     manifest: join(root, 'metadata', 'questions', 'lote.json.source.json'),
+    usageBasis: 'official' as const,
   };
 
   assert.equal(await readLatestPublication(latestPath), null);
   await writeLatestPublication(latestPath, expected);
   assert.deepEqual(await readLatestPublication(latestPath), expected);
+});
+
+test('rejeita marcador incremental com base de uso inválida', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'external-source-latest-invalid-usage-'));
+  const latestPath = join(root, 'metadata', 'questions', 'prova.latest.json');
+  await mkdir(join(root, 'metadata', 'questions'), { recursive: true });
+  await writeFile(latestPath, JSON.stringify({
+    schemaVersion: 1,
+    sequence: 1,
+    sha256: 'c'.repeat(64),
+    output: join(root, 'questions', 'lote.json'),
+    manifest: join(root, 'metadata', 'questions', 'lote.json.source.json'),
+    usageBasis: 'unknown',
+  }));
+
+  await assert.rejects(
+    readLatestPublication(latestPath),
+    /Marcador de publicação incremental inválido/,
+  );
 });
 
 test('serializa duas publicações concorrentes do mesmo prefixo sem exigir ordem de aquisição', async () => {
