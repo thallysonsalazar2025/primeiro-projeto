@@ -58,6 +58,16 @@ test('normaliza extração oficial para o contrato de importação preservando p
   ]);
 });
 
+test('rejeita fonte não oficial no adaptador de prova oficial', () => {
+  const input = extraction();
+  input.source.type = 'OPEN_DATASET';
+
+  assert.throws(
+    () => normalizeOfficialQuestionExtraction(input),
+    /source.type deve ser uma fonte oficial/,
+  );
+});
+
 test('falha fechado quando o gabarito extraído não corresponde às alternativas', () => {
   const input = extraction();
   input.questions[0].correctLabel = 'C';
