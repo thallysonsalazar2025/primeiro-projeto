@@ -1,5 +1,6 @@
-import { link, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { link, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
+import { readIngestionFileWithinLimit } from './ingestion-file-size.ts';
 
 export type IngestionKind = 'questions' | 'rankings';
 
@@ -11,6 +12,8 @@ export type LatestPublication = {
   manifest: string;
   usageBasis?: 'official' | 'open-data' | 'licensed' | null;
 };
+
+const LATEST_PUBLICATION_MAX_BYTES = 64 * 1024;
 
 function validatePrefix(prefix: string) {
   if (!prefix || basename(prefix) !== prefix || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(prefix)) {
@@ -58,7 +61,8 @@ export function planLatestPublicationPaths(inboxRoot: string, kind: IngestionKin
 
 export async function readLatestPublication(latestPath: string): Promise<LatestPublication | null> {
   try {
-    const parsed = JSON.parse(await readFile(latestPath, 'utf8')) as Partial<LatestPublication>;
+    const raw = await readIngestionFileWithinLimit(latestPath, LATEST_PUBLICATION_MAX_BYTES);
+    const parsed = JSON.parse(raw.toString('utf8')) as Partial<LatestPublication>;
     if (
       parsed.schemaVersion !== 1
       || !Number.isSafeInteger(parsed.sequence)

@@ -92,6 +92,18 @@ test('mantém compatibilidade de leitura com marcador legado sem base de uso', a
   assert.deepEqual(await readLatestPublication(latestPath), legacy);
 });
 
+test('rejeita marcador incremental acima do limite antes de parsear', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'external-source-latest-oversize-'));
+  const latestPath = join(root, 'metadata', 'questions', 'prova.latest.json');
+  await mkdir(join(root, 'metadata', 'questions'), { recursive: true });
+  await writeFile(latestPath, 'x'.repeat((64 * 1024) + 1));
+
+  await assert.rejects(
+    readLatestPublication(latestPath),
+    /arquivo de ingestão excede o limite de 65536 bytes/,
+  );
+});
+
 test('rejeita marcador incremental com base de uso inválida', async () => {
   const root = await mkdtemp(join(tmpdir(), 'external-source-latest-invalid-usage-'));
   const latestPath = join(root, 'metadata', 'questions', 'prova.latest.json');
