@@ -19,7 +19,13 @@ import {
 
 const prisma = new PrismaClient();
 
-async function appendFinalAnswerKey(questionId: string, answer: string | null, isAnnulled: boolean, sourceUrl: string) {
+async function appendFinalAnswerKey(
+  questionId: string,
+  answer: string | null,
+  isAnnulled: boolean,
+  sourceUrl: string,
+  publishedAt: Date | null,
+) {
   const latest = await prisma.questionAnswerKey.findFirst({
     where: { questionId },
     orderBy: { version: 'desc' },
@@ -31,7 +37,14 @@ async function appendFinalAnswerKey(questionId: string, answer: string | null, i
     latest.answer === answer &&
     latest.isAnnulled === isAnnulled
   ) {
-    return latest;
+    const samePublishedAt = latest.publishedAt?.getTime() === publishedAt?.getTime()
+      || (!latest.publishedAt && !publishedAt);
+    if (latest.sourceUrl === sourceUrl && samePublishedAt) return latest;
+
+    return prisma.questionAnswerKey.update({
+      where: { id: latest.id },
+      data: { sourceUrl, publishedAt },
+    });
   }
 
   return prisma.questionAnswerKey.create({
@@ -42,6 +55,7 @@ async function appendFinalAnswerKey(questionId: string, answer: string | null, i
       answer,
       isAnnulled,
       sourceUrl,
+      publishedAt,
     },
   });
 }
@@ -75,6 +89,10 @@ async function main() {
   const retrievedAt = batch.source.retrievedAt?.trim()
     ? new Date(batch.source.retrievedAt.trim())
     : verifiedAt;
+  const answerKeySourceUrl = batch.answerKey?.url?.trim() || batch.source.url;
+  const answerKeyPublishedAt = batch.answerKey?.publishedAt?.trim()
+    ? new Date(batch.answerKey.publishedAt.trim())
+    : null;
 
   const board = await prisma.examBoard.upsert({
     where: { acronym: batch.board.acronym.trim().toUpperCase() },
@@ -259,7 +277,8 @@ async function main() {
       saved.id,
       isAnnulled ? null : correctChoices[0],
       isAnnulled,
-      batch.source.url,
+      answerKeySourceUrl,
+      answerKeyPublishedAt,
     );
 
     const provenance = await prisma.questionProvenance.findFirst({
