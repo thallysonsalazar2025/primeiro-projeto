@@ -14,6 +14,7 @@ export type IncomingFinalAnswerKey = {
   sourceUrl: string;
   publishedAt: Date | null;
   legacyQuestionSourceUrl: string;
+  provenanceExplicit: boolean;
 };
 
 function sameDate(left: Date | null, right: Date | null) {
@@ -31,6 +32,10 @@ export function decideFinalAnswerKeyPersistence(
     || latest.isAnnulled !== incoming.isAnnulled
   ) {
     return 'APPEND';
+  }
+
+  if (!incoming.provenanceExplicit) {
+    return 'REUSE';
   }
 
   if (latest.sourceUrl === incoming.sourceUrl && sameDate(latest.publishedAt, incoming.publishedAt)) {
