@@ -1,11 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeOfficialQuestionExtraction } from './official-question-extraction.ts';
+import {
+  normalizeOfficialQuestionExtraction,
+  type OfficialQuestionExtraction,
+} from './official-question-extraction.ts';
 
-function extraction() {
+function extraction(): OfficialQuestionExtraction {
   return {
     source: {
-      type: 'OFFICIAL_PDF' as const,
+      type: 'OFFICIAL_PDF',
       url: 'https://example.gov.br/prova.pdf',
       license: 'Uso autorizado pela fonte oficial',
       sourceHash: 'a'.repeat(64),
