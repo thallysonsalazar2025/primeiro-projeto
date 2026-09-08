@@ -1,8 +1,12 @@
 import { createHash } from 'node:crypto';
-import { open, readFile, writeFile } from 'node:fs/promises';
+import { open, writeFile } from 'node:fs/promises';
 import { AnswerKeyKind, Prisma, PrismaClient, QuestionStatus, SourceType } from '@prisma/client';
 import { decideFinalAnswerKeyPersistence } from '../src/lib/answer-key-versioning.ts';
 import { nextExamSourceMetadata } from '../src/lib/exam-source-metadata.ts';
+import {
+  parseMaxIngestionFileBytes,
+  readIngestionFileWithinLimit,
+} from '../src/lib/ingestion-file-size.ts';
 import { serializeIngestionReport, type IngestionReport } from '../src/lib/ingestion-report.ts';
 import { claimQuestionFingerprint, questionFingerprint } from '../src/lib/question-fingerprint.ts';
 import {
@@ -86,7 +90,8 @@ async function main() {
 
   await validateReportDestination(reportPath);
 
-  const inputBytes = await readFile(inputPath);
+  const maxInputBytes = parseMaxIngestionFileBytes(process.env.INGESTION_MAX_FILE_BYTES);
+  const inputBytes = await readIngestionFileWithinLimit(inputPath, maxInputBytes);
   const inputSha256 = createHash('sha256').update(inputBytes).digest('hex');
   const raw = inputBytes.toString('utf8');
   const batch = validateQuestionImportBatch(JSON.parse(raw) as QuestionImportBatch);
