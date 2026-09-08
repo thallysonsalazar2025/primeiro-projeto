@@ -91,7 +91,11 @@ async function main() {
     const latestPaths = planLatestPublicationPaths(inboxRoot, enqueue, namePrefix);
     const publication = await withPublicationLock(latestPaths.lockPath, async () => {
       const latest = await readLatestPublication(latestPaths.latestPath);
-      if (latest?.sha256.toLowerCase() === result.sha256.toLowerCase()) {
+      const normalizedUsageBasis = usageBasis ?? null;
+      if (
+        latest?.sha256.toLowerCase() === result.sha256.toLowerCase()
+        && (latest.usageBasis ?? null) === normalizedUsageBasis
+      ) {
         return { skipped: true as const, planned: { outputPath: latest.output, manifestPath: latest.manifest } };
       }
 
@@ -104,6 +108,7 @@ async function main() {
         sha256: result.sha256.toLowerCase(),
         output: planned.outputPath,
         manifest: planned.manifestPath,
+        usageBasis: normalizedUsageBasis,
       });
       return { skipped: false as const, planned };
     });
