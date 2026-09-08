@@ -97,3 +97,21 @@ test('permite questão anulada sem alternativa correta', () => {
   assert.equal(batch.questions[0].status, 'ANNULLED');
   assert.equal(batch.questions[0].choices.every((choice) => !choice.isCorrect), true);
 });
+
+test('rejeita payload runtime que não seja objeto com erro de domínio', () => {
+  assert.throws(
+    () => normalizeOfficialQuestionExtraction(null),
+    /extraction deve ser um objeto/,
+  );
+});
+
+test('rejeita alternativa com shape runtime inválido antes da normalização', () => {
+  const input = extraction() as unknown as Record<string, unknown>;
+  const questions = input.questions as Array<Record<string, unknown>>;
+  questions[0].choices = [{ label: 'A', text: 123 }];
+
+  assert.throws(
+    () => normalizeOfficialQuestionExtraction(input),
+    /questions\[0\]\.choices\[0\]\.text deve ser texto/,
+  );
+});
