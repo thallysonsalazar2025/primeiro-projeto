@@ -1,3 +1,5 @@
+import { validatePublicHttpUrl } from './source-url-security.ts';
+
 export type IngestionUsageBasis = 'official' | 'open-data' | 'licensed';
 
 export type ConfiguredIngestionSource = {
@@ -31,7 +33,7 @@ function assertSafeToken(value: unknown, label: string, maxLength: number) {
 
 function assertHttpsUrl(value: unknown, label: string) {
   if (typeof value !== 'string') throw new Error(`${label} deve ser uma URL HTTPS.`);
-  const parsed = new URL(value);
+  const parsed = validatePublicHttpUrl(value, label);
   if (parsed.protocol !== 'https:') throw new Error(`${label} deve usar HTTPS.`);
   return parsed.toString();
 }
