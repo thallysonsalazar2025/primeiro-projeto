@@ -35,9 +35,53 @@ function normalizedLabel(value: string) {
   return value.trim().toUpperCase();
 }
 
+function requireRecord(value: unknown, field: string): asserts value is Record<string, unknown> {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${field} deve ser um objeto`);
+  }
+}
+
+function requireString(value: unknown, field: string): asserts value is string {
+  if (typeof value !== 'string') throw new Error(`${field} deve ser texto`);
+}
+
+function validateOptionalString(value: unknown, field: string): asserts value is string | null | undefined {
+  if (value != null && typeof value !== 'string') throw new Error(`${field} deve ser texto`);
+}
+
+export function parseOfficialQuestionExtraction(input: unknown): OfficialQuestionExtraction {
+  requireRecord(input, 'extraction');
+  requireRecord(input.source, 'source');
+  requireRecord(input.board, 'board');
+  requireRecord(input.exam, 'exam');
+  if (!Array.isArray(input.questions)) throw new Error('questions deve ser uma lista');
+
+  for (const [index, question] of input.questions.entries()) {
+    const prefix = `questions[${index}]`;
+    requireRecord(question, prefix);
+    requireString(question.statement, `${prefix}.statement`);
+    validateOptionalString(question.correctLabel, `${prefix}.correctLabel`);
+    validateOptionalString(question.subject, `${prefix}.subject`);
+    validateOptionalString(question.topic, `${prefix}.topic`);
+    validateOptionalString(question.explanation, `${prefix}.explanation`);
+    validateOptionalString(question.sourceLabel, `${prefix}.sourceLabel`);
+    if (!Array.isArray(question.choices)) throw new Error(`${prefix}.choices deve ser uma lista`);
+
+    for (const [choiceIndex, choice] of question.choices.entries()) {
+      requireRecord(choice, `${prefix}.choices[${choiceIndex}]`);
+      requireString(choice.label, `${prefix}.choices[${choiceIndex}].label`);
+      requireString(choice.text, `${prefix}.choices[${choiceIndex}].text`);
+    }
+  }
+
+  return input as OfficialQuestionExtraction;
+}
+
 export function normalizeOfficialQuestionExtraction(
-  extraction: OfficialQuestionExtraction,
+  input: unknown,
 ): QuestionImportBatch {
+  const extraction = parseOfficialQuestionExtraction(input);
+
   if (!OFFICIAL_SOURCE_TYPES.has(extraction.source.type)) {
     throw new Error(`source.type deve ser uma fonte oficial: ${extraction.source.type}`);
   }
