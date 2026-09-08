@@ -76,6 +76,22 @@ test('grava e lê publicação incremental com base de uso preservada', async ()
   assert.deepEqual(await readLatestPublication(latestPath), expected);
 });
 
+test('mantém compatibilidade de leitura com marcador legado sem base de uso', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'external-source-latest-legacy-'));
+  const latestPath = join(root, 'metadata', 'questions', 'prova.latest.json');
+  await mkdir(join(root, 'metadata', 'questions'), { recursive: true });
+  const legacy = {
+    schemaVersion: 1 as const,
+    sequence: 2,
+    sha256: 'd'.repeat(64),
+    output: join(root, 'questions', 'lote.json'),
+    manifest: join(root, 'metadata', 'questions', 'lote.json.source.json'),
+  };
+  await writeFile(latestPath, JSON.stringify(legacy));
+
+  assert.deepEqual(await readLatestPublication(latestPath), legacy);
+});
+
 test('rejeita marcador incremental com base de uso inválida', async () => {
   const root = await mkdtemp(join(tmpdir(), 'external-source-latest-invalid-usage-'));
   const latestPath = join(root, 'metadata', 'questions', 'prova.latest.json');
