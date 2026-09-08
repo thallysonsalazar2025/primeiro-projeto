@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import { validatePublicHttpUrl } from './source-url-security.ts';
 
 export const DEFAULT_EXTERNAL_SOURCE_MAX_BYTES = 25 * 1024 * 1024;
 const DEFAULT_MAX_REDIRECTS = 5;
@@ -54,26 +55,10 @@ function isPrivateIp(address: string) {
 }
 
 function assertHttpsUrl(rawUrl: string) {
-  let parsed: URL;
-  try {
-    parsed = new URL(rawUrl);
-  } catch {
-    throw new Error('URL externa inválida.');
-  }
+  const parsed = validatePublicHttpUrl(rawUrl, 'Fonte externa');
 
   if (parsed.protocol !== 'https:') {
     throw new Error('Fonte externa deve usar HTTPS.');
-  }
-  if (parsed.username || parsed.password) {
-    throw new Error('Fonte externa não pode conter credenciais na URL.');
-  }
-
-  const hostname = parsed.hostname.toLowerCase();
-  if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local')) {
-    throw new Error('Fonte externa não pode apontar para host local ou privado.');
-  }
-  if (isIP(hostname) && isPrivateIp(hostname)) {
-    throw new Error('Fonte externa não pode apontar para IP local ou privado.');
   }
 
   return parsed;
