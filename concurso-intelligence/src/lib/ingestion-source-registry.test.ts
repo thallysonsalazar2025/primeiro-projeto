@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { parseIngestionSourceRegistry } from './ingestion-source-registry.ts';
 
-test('aceita registry HTTPS válido e normaliza defaults', () => {
+test('aceita registry HTTPS válido com ativação explícita', () => {
   const registry = parseIngestionSourceRegistry({
     schemaVersion: 1,
     sources: [
@@ -13,6 +13,7 @@ test('aceita registry HTTPS válido e normaliza defaults', () => {
         enqueue: 'questions',
         namePrefix: 'fonte-oficial',
         usageBasis: 'official',
+        enabled: true,
       },
     ],
   });
@@ -20,6 +21,23 @@ test('aceita registry HTTPS válido e normaliza defaults', () => {
   assert.equal(registry.sources[0]?.enabled, true);
   assert.equal(registry.sources[0]?.usageBasis, 'official');
   assert.equal(registry.sources[0]?.url, 'https://example.gov.br/questions.json');
+});
+
+test('mantém fonte desabilitada quando enabled é omitido', () => {
+  const registry = parseIngestionSourceRegistry({
+    schemaVersion: 1,
+    sources: [
+      {
+        id: 'fonte-em-preparacao',
+        url: 'https://example.gov.br/questions.json',
+        enqueue: 'questions',
+        namePrefix: 'fonte-em-preparacao',
+        usageBasis: 'official',
+      },
+    ],
+  });
+
+  assert.equal(registry.sources[0]?.enabled, false);
 });
 
 test('rejeita fonte sem HTTPS', () => {
@@ -126,11 +144,11 @@ test('valida SHA-256 opcional', () => {
   );
 });
 
-test('exige base de uso válida para toda fonte habilitada', () => {
+test('exige base de uso válida para toda fonte explicitamente habilitada', () => {
   assert.throws(
     () => parseIngestionSourceRegistry({
       schemaVersion: 1,
-      sources: [{ id: 'a', url: 'https://example.com/a.json', enqueue: 'questions', namePrefix: 'a' }],
+      sources: [{ id: 'a', url: 'https://example.com/a.json', enqueue: 'questions', namePrefix: 'a', enabled: true }],
     }),
     /usageBasis é obrigatório/,
   );
@@ -138,7 +156,7 @@ test('exige base de uso válida para toda fonte habilitada', () => {
   assert.throws(
     () => parseIngestionSourceRegistry({
       schemaVersion: 1,
-      sources: [{ id: 'a', url: 'https://example.com/a.json', enqueue: 'questions', namePrefix: 'a', usageBasis: 'unknown' }],
+      sources: [{ id: 'a', url: 'https://example.com/a.json', enqueue: 'questions', namePrefix: 'a', usageBasis: 'unknown', enabled: true }],
     }),
     /official, open-data ou licensed/,
   );
@@ -146,7 +164,7 @@ test('exige base de uso válida para toda fonte habilitada', () => {
   for (const usageBasis of ['official', 'open-data', 'licensed']) {
     assert.doesNotThrow(() => parseIngestionSourceRegistry({
       schemaVersion: 1,
-      sources: [{ id: usageBasis, url: 'https://example.com/a.json', enqueue: 'questions', namePrefix: usageBasis, usageBasis }],
+      sources: [{ id: usageBasis, url: 'https://example.com/a.json', enqueue: 'questions', namePrefix: usageBasis, usageBasis, enabled: true }],
     }));
   }
 });
