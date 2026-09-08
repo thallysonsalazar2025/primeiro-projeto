@@ -29,6 +29,8 @@ export type OfficialQuestionExtraction = {
   questions: ExtractedOfficialQuestion[];
 };
 
+const OFFICIAL_SOURCE_TYPES = new Set(['OFFICIAL_PDF', 'OFFICIAL_WEB']);
+
 function normalizedLabel(value: string) {
   return value.trim().toUpperCase();
 }
@@ -36,6 +38,10 @@ function normalizedLabel(value: string) {
 export function normalizeOfficialQuestionExtraction(
   extraction: OfficialQuestionExtraction,
 ): QuestionImportBatch {
+  if (!OFFICIAL_SOURCE_TYPES.has(extraction.source.type)) {
+    throw new Error(`source.type deve ser uma fonte oficial: ${extraction.source.type}`);
+  }
+
   const batch: QuestionImportBatch = {
     source: extraction.source,
     board: extraction.board,
