@@ -97,6 +97,19 @@ test('rejeita data de publicação inválida no gabarito oficial', () => {
   );
 });
 
+test('rejeita data calendário impossível no gabarito oficial', () => {
+  const input = extraction();
+  input.answerKey = {
+    url: 'https://example.gov.br/gabarito.pdf',
+    publishedAt: '2026-02-29T00:00:00Z',
+  };
+
+  assert.throws(
+    () => normalizeOfficialQuestionExtraction(input),
+    /answerKey.publishedAt deve estar em ISO-8601 UTC/,
+  );
+});
+
 test('falha fechado quando o gabarito extraído não corresponde às alternativas', () => {
   const input = extraction();
   input.questions[0].correctLabel = 'C';
