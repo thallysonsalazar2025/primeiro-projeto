@@ -32,6 +32,40 @@ test('rejeita fonte sem HTTPS', () => {
   );
 });
 
+test('rejeita hosts locais ou privados no registry de ingestão', () => {
+  for (const url of [
+    'https://localhost/questions.json',
+    'https://127.0.0.1/questions.json',
+    'https://10.0.0.7/questions.json',
+    'https://192.168.1.10/questions.json',
+    'https://[::1]/questions.json',
+  ]) {
+    assert.throws(
+      () => parseIngestionSourceRegistry({
+        schemaVersion: 1,
+        sources: [{ id: 'x', url, enqueue: 'questions', namePrefix: 'x', usageBasis: 'official' }],
+      }),
+      /host local ou privado/,
+    );
+  }
+});
+
+test('rejeita credenciais e parâmetros sensíveis em URL de fonte', () => {
+  for (const url of [
+    'https://user:password@example.com/questions.json',
+    'https://example.com/questions.json?access_token=secret',
+    'https://example.com/questions.json?clientSecret=secret',
+  ]) {
+    assert.throws(
+      () => parseIngestionSourceRegistry({
+        schemaVersion: 1,
+        sources: [{ id: 'x', url, enqueue: 'questions', namePrefix: 'x', usageBasis: 'official' }],
+      }),
+      /credenciais embutidas|parâmetro sensível/,
+    );
+  }
+});
+
 test('rejeita ids e prefixos de fila duplicados', () => {
   assert.throws(
     () => parseIngestionSourceRegistry({
