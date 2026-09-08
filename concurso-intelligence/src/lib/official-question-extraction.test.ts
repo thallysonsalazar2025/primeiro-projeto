@@ -14,6 +14,10 @@ function extraction(): OfficialQuestionExtraction {
       sourceHash: 'a'.repeat(64),
       retrievedAt: '2026-09-08T05:00:00Z',
     },
+    answerKey: {
+      url: 'https://example.gov.br/gabarito-definitivo.pdf',
+      publishedAt: '2026-09-08T06:00:00Z',
+    },
     board: {
       acronym: 'FGV',
       name: 'Fundação Getulio Vargas',
@@ -48,6 +52,8 @@ test('normaliza extração oficial para o contrato de importação preservando p
 
   assert.equal(batch.source.type, 'OFFICIAL_PDF');
   assert.equal(batch.source.url, 'https://example.gov.br/prova.pdf');
+  assert.equal(batch.answerKey?.url, 'https://example.gov.br/gabarito-definitivo.pdf');
+  assert.equal(batch.answerKey?.publishedAt, '2026-09-08T06:00:00Z');
   assert.equal(batch.exam.sourceDocument, 'prova.pdf');
   assert.equal(batch.questions[0].statement, 'Qual alternativa está correta?');
   assert.equal(batch.questions[0].sourcePage, 3);
@@ -65,6 +71,42 @@ test('rejeita fonte não oficial no adaptador de prova oficial', () => {
   assert.throws(
     () => normalizeOfficialQuestionExtraction(input),
     /source.type deve ser uma fonte oficial/,
+  );
+});
+
+test('rejeita URL privada no gabarito oficial', () => {
+  const input = extraction();
+  input.answerKey = { url: 'http://127.0.0.1/gabarito.pdf' };
+
+  assert.throws(
+    () => normalizeOfficialQuestionExtraction(input),
+    /answerKey.url/,
+  );
+});
+
+test('rejeita data de publicação inválida no gabarito oficial', () => {
+  const input = extraction();
+  input.answerKey = {
+    url: 'https://example.gov.br/gabarito.pdf',
+    publishedAt: '08/09/2026',
+  };
+
+  assert.throws(
+    () => normalizeOfficialQuestionExtraction(input),
+    /answerKey.publishedAt deve estar em ISO-8601 UTC/,
+  );
+});
+
+test('rejeita data calendário impossível no gabarito oficial', () => {
+  const input = extraction();
+  input.answerKey = {
+    url: 'https://example.gov.br/gabarito.pdf',
+    publishedAt: '2026-02-29T00:00:00Z',
+  };
+
+  assert.throws(
+    () => normalizeOfficialQuestionExtraction(input),
+    /answerKey.publishedAt deve estar em ISO-8601 UTC/,
   );
 });
 

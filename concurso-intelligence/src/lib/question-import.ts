@@ -52,6 +52,10 @@ export type QuestionImportBatch = {
     notes?: string | null;
     retrievedAt?: string | null;
   };
+  answerKey?: {
+    url: string;
+    publishedAt?: string | null;
+  } | null;
   board: {
     acronym: string;
     name: string;
@@ -94,7 +98,15 @@ function validateOptionalIsoDateTime(value: unknown, field: string) {
   validateOptionalString(value, field);
   if (value == null || !value.trim()) return;
   const normalized = value.trim();
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(normalized) || Number.isNaN(Date.parse(normalized))) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?Z$/.exec(normalized);
+  if (!match) {
+    throw new Error(`${field} deve estar em ISO-8601 UTC`);
+  }
+
+  const parsed = new Date(normalized);
+  const [, year, month, day, hour, minute, second, fraction = ''] = match;
+  const expectedIso = `${year}-${month}-${day}T${hour}:${minute}:${second}.${fraction.padEnd(3, '0')}Z`;
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString() !== expectedIso) {
     throw new Error(`${field} deve estar em ISO-8601 UTC`);
   }
 }
@@ -130,6 +142,14 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
   validatePublicHttpUrl(batch.source.url, 'source.url');
   validateOptionalSha256(batch.source.sourceHash, 'source.sourceHash');
   validateExternalSourceHash(batch.source.type, batch.source.sourceHash);
+
+  if (batch.answerKey != null) {
+    requireRecord(batch.answerKey, 'answerKey');
+    requireNonBlank(batch.answerKey.url, 'answerKey.url');
+    validatePublicHttpUrl(batch.answerKey.url, 'answerKey.url');
+    validateOptionalIsoDateTime(batch.answerKey.publishedAt, 'answerKey.publishedAt');
+  }
+
   if (batch.board.website?.trim()) {
     validatePublicHttpUrl(batch.board.website.trim(), 'board.website');
   }

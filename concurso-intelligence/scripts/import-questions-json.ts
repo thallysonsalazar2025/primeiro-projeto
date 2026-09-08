@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { open, readFile, writeFile } from 'node:fs/promises';
 import { AnswerKeyKind, Prisma, PrismaClient, QuestionStatus, SourceType } from '@prisma/client';
+import { decideFinalAnswerKeyPersistence } from '../src/lib/answer-key-versioning.ts';
 import { nextExamSourceMetadata } from '../src/lib/exam-source-metadata.ts';
 import { serializeIngestionReport, type IngestionReport } from '../src/lib/ingestion-report.ts';
 import { claimQuestionFingerprint, questionFingerprint } from '../src/lib/question-fingerprint.ts';
@@ -19,19 +20,36 @@ import {
 
 const prisma = new PrismaClient();
 
-async function appendFinalAnswerKey(questionId: string, answer: string | null, isAnnulled: boolean, sourceUrl: string) {
+async function appendFinalAnswerKey(
+  questionId: string,
+  answer: string | null,
+  isAnnulled: boolean,
+  sourceUrl: string,
+  publishedAt: Date | null,
+  legacyQuestionSourceUrl: string,
+  provenanceExplicit: boolean,
+) {
   const latest = await prisma.questionAnswerKey.findFirst({
     where: { questionId },
     orderBy: { version: 'desc' },
   });
 
-  if (
-    latest &&
-    latest.kind === AnswerKeyKind.FINAL &&
-    latest.answer === answer &&
-    latest.isAnnulled === isAnnulled
-  ) {
-    return latest;
+  const decision = decideFinalAnswerKeyPersistence(latest, {
+    answer,
+    isAnnulled,
+    sourceUrl,
+    publishedAt,
+    legacyQuestionSourceUrl,
+    provenanceExplicit,
+  });
+
+  if (decision === 'REUSE' && latest) return latest;
+
+  if (decision === 'BACKFILL' && latest) {
+    return prisma.questionAnswerKey.update({
+      where: { id: latest.id },
+      data: { sourceUrl, publishedAt },
+    });
   }
 
   return prisma.questionAnswerKey.create({
@@ -42,6 +60,7 @@ async function appendFinalAnswerKey(questionId: string, answer: string | null, i
       answer,
       isAnnulled,
       sourceUrl,
+      publishedAt,
     },
   });
 }
@@ -75,6 +94,11 @@ async function main() {
   const retrievedAt = batch.source.retrievedAt?.trim()
     ? new Date(batch.source.retrievedAt.trim())
     : verifiedAt;
+  const answerKeyProvenanceExplicit = batch.answerKey != null;
+  const answerKeySourceUrl = batch.answerKey?.url?.trim() || batch.source.url;
+  const answerKeyPublishedAt = batch.answerKey?.publishedAt?.trim()
+    ? new Date(batch.answerKey.publishedAt.trim())
+    : null;
 
   const board = await prisma.examBoard.upsert({
     where: { acronym: batch.board.acronym.trim().toUpperCase() },
@@ -259,7 +283,10 @@ async function main() {
       saved.id,
       isAnnulled ? null : correctChoices[0],
       isAnnulled,
+      answerKeySourceUrl,
+      answerKeyPublishedAt,
       batch.source.url,
+      answerKeyProvenanceExplicit,
     );
 
     const provenance = await prisma.questionProvenance.findFirst({
