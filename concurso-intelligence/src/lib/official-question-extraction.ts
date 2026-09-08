@@ -24,6 +24,7 @@ export type ExtractedOfficialQuestion = {
 
 export type OfficialQuestionExtraction = {
   source: QuestionImportBatch['source'];
+  answerKey?: QuestionImportBatch['answerKey'];
   board: QuestionImportBatch['board'];
   exam: QuestionImportBatch['exam'];
   questions: ExtractedOfficialQuestion[];
@@ -52,6 +53,7 @@ function validateOptionalString(value: unknown, field: string): asserts value is
 function parseOfficialQuestionExtraction(input: unknown): OfficialQuestionExtraction {
   requireRecord(input, 'extraction');
   requireRecord(input.source, 'source');
+  if (input.answerKey != null) requireRecord(input.answerKey, 'answerKey');
   requireRecord(input.board, 'board');
   requireRecord(input.exam, 'exam');
   if (!Array.isArray(input.questions)) throw new Error('questions deve ser uma lista');
@@ -88,6 +90,7 @@ export function normalizeOfficialQuestionExtraction(
 
   const batch: QuestionImportBatch = {
     source: extraction.source,
+    answerKey: extraction.answerKey,
     board: extraction.board,
     exam: extraction.exam,
     questions: extraction.questions.map((question, index) => {
