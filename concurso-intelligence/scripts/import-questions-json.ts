@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { open, readFile, writeFile } from 'node:fs/promises';
 import { AnswerKeyKind, Prisma, PrismaClient, QuestionStatus, SourceType } from '@prisma/client';
+import { decideFinalAnswerKeyPersistence } from '../src/lib/answer-key-versioning.ts';
 import { nextExamSourceMetadata } from '../src/lib/exam-source-metadata.ts';
 import { serializeIngestionReport, type IngestionReport } from '../src/lib/ingestion-report.ts';
 import { claimQuestionFingerprint, questionFingerprint } from '../src/lib/question-fingerprint.ts';
@@ -25,22 +26,24 @@ async function appendFinalAnswerKey(
   isAnnulled: boolean,
   sourceUrl: string,
   publishedAt: Date | null,
+  legacyQuestionSourceUrl: string,
 ) {
   const latest = await prisma.questionAnswerKey.findFirst({
     where: { questionId },
     orderBy: { version: 'desc' },
   });
 
-  if (
-    latest &&
-    latest.kind === AnswerKeyKind.FINAL &&
-    latest.answer === answer &&
-    latest.isAnnulled === isAnnulled
-  ) {
-    const samePublishedAt = latest.publishedAt?.getTime() === publishedAt?.getTime()
-      || (!latest.publishedAt && !publishedAt);
-    if (latest.sourceUrl === sourceUrl && samePublishedAt) return latest;
+  const decision = decideFinalAnswerKeyPersistence(latest, {
+    answer,
+    isAnnulled,
+    sourceUrl,
+    publishedAt,
+    legacyQuestionSourceUrl,
+  });
 
+  if (decision === 'REUSE' && latest) return latest;
+
+  if (decision === 'BACKFILL' && latest) {
     return prisma.questionAnswerKey.update({
       where: { id: latest.id },
       data: { sourceUrl, publishedAt },
@@ -279,6 +282,7 @@ async function main() {
       isAnnulled,
       answerKeySourceUrl,
       answerKeyPublishedAt,
+      batch.source.url,
     );
 
     const provenance = await prisma.questionProvenance.findFirst({
