@@ -8,6 +8,7 @@ const incoming = {
   sourceUrl: 'https://example.gov.br/gabarito-definitivo.pdf',
   publishedAt: new Date('2026-09-08T06:00:00Z'),
   legacyQuestionSourceUrl: 'https://example.gov.br/prova.pdf',
+  provenanceExplicit: true,
 };
 
 test('reutiliza versão idêntica do mesmo gabarito', () => {
@@ -28,6 +29,21 @@ test('faz backfill quando a versão antiga aponta para a prova', () => {
     sourceUrl: incoming.legacyQuestionSourceUrl,
     publishedAt: null,
   }, incoming), 'BACKFILL');
+});
+
+test('preserva proveniência existente quando replay legado omite answerKey', () => {
+  assert.equal(decideFinalAnswerKeyPersistence({
+    kind: 'FINAL',
+    answer: 'B',
+    isAnnulled: false,
+    sourceUrl: incoming.sourceUrl,
+    publishedAt: incoming.publishedAt,
+  }, {
+    ...incoming,
+    sourceUrl: incoming.legacyQuestionSourceUrl,
+    publishedAt: null,
+    provenanceExplicit: false,
+  }), 'REUSE');
 });
 
 test('preserva histórico quando a mesma resposta vem de outro gabarito oficial', () => {
