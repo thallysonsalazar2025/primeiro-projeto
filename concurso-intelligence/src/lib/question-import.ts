@@ -52,6 +52,10 @@ export type QuestionImportBatch = {
     notes?: string | null;
     retrievedAt?: string | null;
   };
+  answerKey?: {
+    url: string;
+    publishedAt?: string | null;
+  } | null;
   board: {
     acronym: string;
     name: string;
@@ -130,6 +134,14 @@ export function validateQuestionImportBatch(batch: QuestionImportBatch) {
   validatePublicHttpUrl(batch.source.url, 'source.url');
   validateOptionalSha256(batch.source.sourceHash, 'source.sourceHash');
   validateExternalSourceHash(batch.source.type, batch.source.sourceHash);
+
+  if (batch.answerKey != null) {
+    requireRecord(batch.answerKey, 'answerKey');
+    requireNonBlank(batch.answerKey.url, 'answerKey.url');
+    validatePublicHttpUrl(batch.answerKey.url, 'answerKey.url');
+    validateOptionalIsoDateTime(batch.answerKey.publishedAt, 'answerKey.publishedAt');
+  }
+
   if (batch.board.website?.trim()) {
     validatePublicHttpUrl(batch.board.website.trim(), 'board.website');
   }
