@@ -27,6 +27,7 @@ async function appendFinalAnswerKey(
   sourceUrl: string,
   publishedAt: Date | null,
   legacyQuestionSourceUrl: string,
+  provenanceExplicit: boolean,
 ) {
   const latest = await prisma.questionAnswerKey.findFirst({
     where: { questionId },
@@ -39,6 +40,7 @@ async function appendFinalAnswerKey(
     sourceUrl,
     publishedAt,
     legacyQuestionSourceUrl,
+    provenanceExplicit,
   });
 
   if (decision === 'REUSE' && latest) return latest;
@@ -92,6 +94,7 @@ async function main() {
   const retrievedAt = batch.source.retrievedAt?.trim()
     ? new Date(batch.source.retrievedAt.trim())
     : verifiedAt;
+  const answerKeyProvenanceExplicit = batch.answerKey != null;
   const answerKeySourceUrl = batch.answerKey?.url?.trim() || batch.source.url;
   const answerKeyPublishedAt = batch.answerKey?.publishedAt?.trim()
     ? new Date(batch.answerKey.publishedAt.trim())
@@ -283,6 +286,7 @@ async function main() {
       answerKeySourceUrl,
       answerKeyPublishedAt,
       batch.source.url,
+      answerKeyProvenanceExplicit,
     );
 
     const provenance = await prisma.questionProvenance.findFirst({
