@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -79,6 +79,7 @@ test('grava e lê publicação incremental com base de uso preservada', async ()
 test('rejeita marcador incremental com base de uso inválida', async () => {
   const root = await mkdtemp(join(tmpdir(), 'external-source-latest-invalid-usage-'));
   const latestPath = join(root, 'metadata', 'questions', 'prova.latest.json');
+  await mkdir(join(root, 'metadata', 'questions'), { recursive: true });
   await writeFile(latestPath, JSON.stringify({
     schemaVersion: 1,
     sequence: 1,
