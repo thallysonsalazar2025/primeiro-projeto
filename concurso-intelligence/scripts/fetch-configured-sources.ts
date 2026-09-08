@@ -56,6 +56,8 @@ async function main() {
       source.enqueue,
       '--name-prefix',
       source.namePrefix,
+      '--usage-basis',
+      source.usageBasis!,
     ];
     if (source.expectedSha256) sourceArgs.push('--sha256', source.expectedSha256);
     await runSource(sourceArgs, timeoutMs);

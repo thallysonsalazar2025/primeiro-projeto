@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fetchExternalSource } from '../src/lib/external-source-fetch.ts';
 import { assertJsonEnqueuePayload } from '../src/lib/external-source-json.ts';
 import { parseMaxIngestionFileBytes } from '../src/lib/ingestion-file-size.ts';
+import { parseIngestionUsageBasis } from '../src/lib/ingestion-source-registry.ts';
 import { parseIngestionSourceTimeoutMs } from '../src/lib/ingestion-source-timeout.ts';
 import {
   contentAddressedEnqueueName,
@@ -34,10 +35,11 @@ async function main() {
   const enqueue = parseKind(argValue('--enqueue'));
   const name = argValue('--name');
   const namePrefix = argValue('--name-prefix');
+  const usageBasis = parseIngestionUsageBasis(argValue('--usage-basis'), '--usage-basis');
 
   if (!url || (!output && !enqueue) || (enqueue && !name && !namePrefix)) {
     throw new Error(
-      'Uso: npm run ingestion:fetch -- <https-url> (--output <arquivo> | --enqueue <questions|rankings> (--name <lote.json> | --name-prefix <prefixo>)) [--sha256 <sha256>] [--manifest <manifesto.json>]',
+      'Uso: npm run ingestion:fetch -- <https-url> (--output <arquivo> | --enqueue <questions|rankings> (--name <lote.json> | --name-prefix <prefixo>)) [--sha256 <sha256>] [--manifest <manifesto.json>] [--usage-basis <official|open-data|licensed>]',
     );
   }
   if (output && enqueue) {
@@ -78,6 +80,7 @@ async function main() {
       bytes: result.bytes.byteLength,
       output: planned.outputPath,
       enqueueKind: enqueue,
+      usageBasis: usageBasis ?? null,
     }, null, 2)}\n`;
 
     await publishAtomically(planned.outputPath, planned.manifestPath, result.bytes, manifestBody);
@@ -88,7 +91,11 @@ async function main() {
     const latestPaths = planLatestPublicationPaths(inboxRoot, enqueue, namePrefix);
     const publication = await withPublicationLock(latestPaths.lockPath, async () => {
       const latest = await readLatestPublication(latestPaths.latestPath);
-      if (latest?.sha256.toLowerCase() === result.sha256.toLowerCase()) {
+      const normalizedUsageBasis = usageBasis ?? null;
+      if (
+        latest?.sha256.toLowerCase() === result.sha256.toLowerCase()
+        && (latest.usageBasis ?? null) === normalizedUsageBasis
+      ) {
         return { skipped: true as const, planned: { outputPath: latest.output, manifestPath: latest.manifest } };
       }
 
@@ -101,6 +108,7 @@ async function main() {
         sha256: result.sha256.toLowerCase(),
         output: planned.outputPath,
         manifest: planned.manifestPath,
+        usageBasis: normalizedUsageBasis,
       });
       return { skipped: false as const, planned };
     });
@@ -142,6 +150,7 @@ async function main() {
     bytes: result.bytes.byteLength,
     output: planned.outputPath,
     enqueueKind: null,
+    usageBasis: usageBasis ?? null,
   }, null, 2)}\n`;
 
   await mkdir(dirname(planned.outputPath), { recursive: true });

@@ -44,12 +44,12 @@ function assertExpectedSha256(value: unknown, label: string) {
   return value.toLowerCase();
 }
 
-function assertUsageBasis(value: unknown, label: string) {
+export function parseIngestionUsageBasis(value: unknown, label = 'usageBasis') {
   if (value === undefined) return undefined;
   if (value !== 'official' && value !== 'open-data' && value !== 'licensed') {
     throw new Error(`${label} deve ser official, open-data ou licensed.`);
   }
-  return value;
+  return value satisfies IngestionUsageBasis;
 }
 
 export function parseIngestionSourceRegistry(input: unknown): IngestionSourceRegistry {
@@ -84,7 +84,7 @@ export function parseIngestionSourceRegistry(input: unknown): IngestionSourceReg
     }
 
     const enabled = rawSource.enabled !== false;
-    const usageBasis = assertUsageBasis(rawSource.usageBasis, `${label}.usageBasis`);
+    const usageBasis = parseIngestionUsageBasis(rawSource.usageBasis, `${label}.usageBasis`);
     if (enabled && !usageBasis) {
       throw new Error(`${label}.usageBasis é obrigatório para fontes habilitadas.`);
     }
