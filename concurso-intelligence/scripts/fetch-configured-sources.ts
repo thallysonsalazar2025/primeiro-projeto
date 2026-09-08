@@ -1,7 +1,10 @@
 import { spawn } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { formatIngestionDryRun } from '../src/lib/ingestion-source-dry-run.ts';
+import {
+  parseMaxIngestionFileBytes,
+  readIngestionFileWithinLimit,
+} from '../src/lib/ingestion-file-size.ts';
 import { parseIngestionSourceRegistry } from '../src/lib/ingestion-source-registry.ts';
 import { runConfiguredIngestionSources } from '../src/lib/ingestion-source-runner.ts';
 import { parseIngestionSourceTimeoutMs } from '../src/lib/ingestion-source-timeout.ts';
@@ -38,7 +41,9 @@ async function main() {
     throw new Error('Uso: npm run ingestion:sources -- <registry.json> [--dry-run]');
   }
 
-  const registry = parseIngestionSourceRegistry(JSON.parse(await readFile(resolve(registryPath), 'utf8')));
+  const maxRegistryBytes = parseMaxIngestionFileBytes(process.env.INGESTION_MAX_FILE_BYTES);
+  const registryBytes = await readIngestionFileWithinLimit(resolve(registryPath), maxRegistryBytes);
+  const registry = parseIngestionSourceRegistry(JSON.parse(registryBytes.toString('utf8')));
 
   if (dryRun) {
     for (const line of formatIngestionDryRun(registry.sources)) {
