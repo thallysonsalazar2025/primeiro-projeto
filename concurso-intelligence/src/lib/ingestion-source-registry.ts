@@ -85,7 +85,7 @@ export function parseIngestionSourceRegistry(input: unknown): IngestionSourceReg
       throw new Error(`${label}.enabled deve ser booleano.`);
     }
 
-    const enabled = rawSource.enabled !== false;
+    const enabled = rawSource.enabled === true;
     const usageBasis = parseIngestionUsageBasis(rawSource.usageBasis, `${label}.usageBasis`);
     if (enabled && !usageBasis) {
       throw new Error(`${label}.usageBasis é obrigatório para fontes habilitadas.`);
