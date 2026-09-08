@@ -51,6 +51,41 @@ export function isSensitiveSourceQueryKey(key: string) {
   return parts.some((part) => SENSITIVE_SOURCE_QUERY_KEY_PARTS.has(part));
 }
 
+function isPrivateIpv4(hostname: string) {
+  const parts = hostname.split('.').map(Number);
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
+  const [a, b] = parts;
+
+  return a === 0
+    || a === 10
+    || a === 127
+    || (a === 100 && b >= 64 && b <= 127)
+    || (a === 169 && b === 254)
+    || (a === 172 && b >= 16 && b <= 31)
+    || (a === 192 && b === 0)
+    || (a === 192 && b === 168)
+    || (a === 198 && (b === 18 || b === 19))
+    || a >= 224;
+}
+
+function isPrivateLiteralHost(rawHostname: string) {
+  const hostname = rawHostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local')) return true;
+  if (isPrivateIpv4(hostname)) return true;
+
+  if (!hostname.includes(':')) return false;
+  if (hostname === '::' || hostname === '::1') return true;
+  if (hostname.startsWith('fc') || hostname.startsWith('fd')) return true;
+  if (/^fe[89ab]/.test(hostname)) return true;
+  if (hostname.startsWith('ff')) return true;
+  if (hostname.startsWith('2001:db8:')) return true;
+  if (hostname.startsWith('::ffff:')) {
+    return isPrivateIpv4(hostname.slice('::ffff:'.length));
+  }
+
+  return false;
+}
+
 export function validatePublicHttpUrl(value: string, field: string) {
   let parsed: URL;
   try {
@@ -65,6 +100,10 @@ export function validatePublicHttpUrl(value: string, field: string) {
 
   if (parsed.username || parsed.password) {
     throw new Error(`${field} não pode conter credenciais embutidas`);
+  }
+
+  if (isPrivateLiteralHost(parsed.hostname)) {
+    throw new Error(`${field} não pode apontar para host local ou privado`);
   }
 
   for (const key of parsed.searchParams.keys()) {
