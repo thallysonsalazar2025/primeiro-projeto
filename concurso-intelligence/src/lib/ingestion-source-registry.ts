@@ -54,6 +54,12 @@ export function parseIngestionUsageBasis(value: unknown, label = 'usageBasis') {
   return value satisfies IngestionUsageBasis;
 }
 
+export function requireIngestionUsageBasis(value: unknown, label = 'usageBasis'): IngestionUsageBasis {
+  const parsed = parseIngestionUsageBasis(value, label);
+  if (!parsed) throw new Error(`${label} é obrigatório.`);
+  return parsed;
+}
+
 export function parseIngestionSourceRegistry(input: unknown): IngestionSourceRegistry {
   assertPlainObject(input, 'Registry');
   if (input.schemaVersion !== 1) throw new Error('schemaVersion deve ser 1.');
@@ -86,10 +92,9 @@ export function parseIngestionSourceRegistry(input: unknown): IngestionSourceReg
     }
 
     const enabled = rawSource.enabled === true;
-    const usageBasis = parseIngestionUsageBasis(rawSource.usageBasis, `${label}.usageBasis`);
-    if (enabled && !usageBasis) {
-      throw new Error(`${label}.usageBasis é obrigatório para fontes habilitadas.`);
-    }
+    const usageBasis = enabled
+      ? requireIngestionUsageBasis(rawSource.usageBasis, `${label}.usageBasis`)
+      : parseIngestionUsageBasis(rawSource.usageBasis, `${label}.usageBasis`);
 
     return {
       id,
