@@ -18,19 +18,11 @@ export const officialDocumentManifestSchema = z.object({
   contentType: z.string().trim().min(1),
   bytes: z.number().int().positive(),
 }).superRefine((manifest, context) => {
-  if (manifest.usageBasis === 'open-data' && !manifest.license) {
+  if ((manifest.usageBasis === 'open-data' || manifest.usageBasis === 'licensed') && !manifest.license) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['license'],
-      message: 'fontes open-data exigem licença explícita para rastreabilidade',
-    });
-  }
-
-  if (manifest.usageBasis === 'licensed' && !manifest.license && !manifest.termsUrl) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['license'],
-      message: 'fontes licenciadas exigem licença ou termsUrl verificável',
+      message: 'fontes reutilizáveis externas exigem licença explícita para rastreabilidade',
     });
   }
 });
