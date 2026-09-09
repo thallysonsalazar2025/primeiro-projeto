@@ -5,7 +5,7 @@ import {
   parseMaxIngestionFileBytes,
   readIngestionFileWithinLimit,
 } from '../src/lib/ingestion-file-size.ts';
-import { parseIngestionSourceRegistry } from '../src/lib/ingestion-source-registry.ts';
+import { parseIngestionSourceRegistryBytes } from '../src/lib/ingestion-source-registry.ts';
 import { runConfiguredIngestionSources } from '../src/lib/ingestion-source-runner.ts';
 import { parseIngestionSourceTimeoutMs } from '../src/lib/ingestion-source-timeout.ts';
 
@@ -43,7 +43,7 @@ async function main() {
 
   const maxRegistryBytes = parseMaxIngestionFileBytes(process.env.INGESTION_MAX_FILE_BYTES);
   const registryBytes = await readIngestionFileWithinLimit(resolve(registryPath), maxRegistryBytes);
-  const registry = parseIngestionSourceRegistry(JSON.parse(registryBytes.toString('utf8')));
+  const registry = parseIngestionSourceRegistryBytes(registryBytes);
 
   if (dryRun) {
     for (const line of formatIngestionDryRun(registry.sources)) {
