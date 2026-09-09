@@ -35,21 +35,69 @@ function isPrivateIpv4(address: string) {
     || a >= 224;
 }
 
+function ipv4FromHextets(high: number, low: number) {
+  return `${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`;
+}
+
+function parseIpv6Hextets(address: string) {
+  if (address.includes('.')) return null;
+
+  const halves = address.split('::');
+  if (halves.length > 2) return null;
+
+  const left = halves[0] ? halves[0].split(':') : [];
+  const right = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  const all = [...left, ...right];
+  if (all.some((part) => !/^[0-9a-f]{1,4}$/i.test(part))) return null;
+
+  const missing = 8 - all.length;
+  if ((halves.length === 1 && missing !== 0) || (halves.length === 2 && missing < 1)) return null;
+
+  return [
+    ...left.map((part) => Number.parseInt(part, 16)),
+    ...Array.from({ length: missing }, () => 0),
+    ...right.map((part) => Number.parseInt(part, 16)),
+  ];
+}
+
+function nat64Ipv4FromHextets(hextets: number[]) {
+  const isWellKnownPrefix = hextets[0] === 0x64
+    && hextets[1] === 0xff9b
+    && hextets[2] === 0
+    && hextets[3] === 0
+    && hextets[4] === 0
+    && hextets[5] === 0;
+  if (!isWellKnownPrefix) return null;
+  return ipv4FromHextets(hextets[6], hextets[7]);
+}
+
 function isPrivateIp(address: string) {
   const normalized = address.toLowerCase();
   const family = isIP(normalized);
   if (family === 4) return isPrivateIpv4(normalized);
   if (family !== 6) return true;
 
-  if (normalized === '::' || normalized === '::1') return true;
-  if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true;
-  if (/^fe[89ab]/.test(normalized)) return true;
-  if (normalized.startsWith('ff')) return true;
-  if (normalized.startsWith('2001:db8:')) return true;
-  if (normalized.startsWith('::ffff:')) {
+  if (normalized.startsWith('::ffff:') && normalized.includes('.')) {
     const mapped = normalized.slice('::ffff:'.length);
     return isIP(mapped) !== 4 || isPrivateIpv4(mapped);
   }
+
+  const hextets = parseIpv6Hextets(normalized);
+  if (!hextets) return true;
+
+  if (hextets.every((part) => part === 0)) return true;
+  if (hextets.slice(0, 7).every((part) => part === 0) && hextets[7] === 1) return true;
+  if ((hextets[0] & 0xfe00) === 0xfc00) return true;
+  if ((hextets[0] & 0xffc0) === 0xfe80) return true;
+  if ((hextets[0] & 0xff00) === 0xff00) return true;
+  if (hextets[0] === 0x2001 && hextets[1] === 0x0db8) return true;
+  if (hextets[0] === 0x64 && hextets[1] === 0xff9b && hextets[2] === 1) return true;
+
+  const isIpv4Mapped = hextets.slice(0, 5).every((part) => part === 0) && hextets[5] === 0xffff;
+  if (isIpv4Mapped) return isPrivateIpv4(ipv4FromHextets(hextets[6], hextets[7]));
+
+  const nat64Ipv4 = nat64Ipv4FromHextets(hextets);
+  if (nat64Ipv4) return isPrivateIpv4(nat64Ipv4);
 
   return false;
 }
