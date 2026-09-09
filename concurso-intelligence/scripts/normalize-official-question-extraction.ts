@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { rename, rm, writeFile } from 'node:fs/promises';
 import {
+  decodeIngestionUtf8,
   parseMaxIngestionFileBytes,
   readIngestionFileWithinLimit,
 } from '../src/lib/ingestion-file-size.ts';
@@ -29,7 +30,7 @@ async function main() {
 
   const maxFileBytes = parseMaxIngestionFileBytes(process.env.INGESTION_MAX_FILE_BYTES);
   const inputBytes = await readIngestionFileWithinLimit(inputPath, maxFileBytes);
-  const extraction = JSON.parse(inputBytes.toString('utf8')) as unknown;
+  const extraction = JSON.parse(decodeIngestionUtf8(inputBytes)) as unknown;
   const batch = normalizeOfficialQuestionExtraction(extraction);
 
   await writeJsonAtomically(outputPath, `${JSON.stringify(batch, null, 2)}\n`);

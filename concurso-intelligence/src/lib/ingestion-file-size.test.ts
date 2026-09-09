@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   DEFAULT_MAX_INGESTION_FILE_BYTES,
   assertIngestionFileSize,
+  decodeIngestionUtf8,
   parseMaxIngestionFileBytes,
 } from './ingestion-file-size.ts';
 
@@ -23,4 +24,9 @@ test('rejects invalid configured limits', () => {
 test('accepts a file exactly at the limit and rejects an oversized file', () => {
   assert.doesNotThrow(() => assertIngestionFileSize(1024, 1024));
   assert.throws(() => assertIngestionFileSize(1025, 1024), /excede o limite de 1024 bytes/);
+});
+
+test('decodes valid UTF-8 and rejects malformed byte sequences', () => {
+  assert.equal(decodeIngestionUtf8(Buffer.from('questão válida', 'utf8')), 'questão válida');
+  assert.throws(() => decodeIngestionUtf8(Uint8Array.from([0xc3, 0x28])), /UTF-8 válido/);
 });

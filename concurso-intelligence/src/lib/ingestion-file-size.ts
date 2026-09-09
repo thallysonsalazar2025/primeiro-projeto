@@ -22,6 +22,14 @@ export function assertIngestionFileSize(sizeBytes: number, maxBytes: number) {
   }
 }
 
+export function decodeIngestionUtf8(bytes: Uint8Array) {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error('arquivo de ingestão deve conter UTF-8 válido');
+  }
+}
+
 export async function readIngestionFileWithinLimit(path: string, maxBytes: number) {
   const chunks: Buffer[] = [];
   let totalBytes = 0;
