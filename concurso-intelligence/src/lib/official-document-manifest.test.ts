@@ -28,11 +28,39 @@ test('preserva cadeia de proveniência e normaliza sha256', () => {
   assert.equal(parsed.sha256, 'a'.repeat(64));
 });
 
-test('rejeita URLs não HTTPS no manifesto bruto', () => {
+test('rejeita URLs não HTTPS, privadas, com credenciais ou parâmetros sensíveis', () => {
   assert.throws(() => parseOfficialDocumentManifest({
     ...validManifest(),
-    finalUrl: 'http://127.0.0.1/prova.pdf',
+    finalUrl: 'http://example.org/prova.pdf',
   }));
+  assert.throws(() => parseOfficialDocumentManifest({
+    ...validManifest(),
+    finalUrl: 'https://127.0.0.1/prova.pdf',
+  }));
+  assert.throws(() => parseOfficialDocumentManifest({
+    ...validManifest(),
+    documentUrl: 'https://user:secret@example.org/prova.pdf',
+  }));
+  assert.throws(() => parseOfficialDocumentManifest({
+    ...validManifest(),
+    sourceUrl: 'https://example.org/catalogo?access_token=secret',
+  }));
+});
+
+test('rejeita contentType incompatível com documentType', () => {
+  assert.throws(() => parseOfficialDocumentManifest({
+    ...validManifest(),
+    contentType: 'text/html',
+  }));
+});
+
+test('aceita contentType esperado com parâmetros', () => {
+  const parsed = parseOfficialDocumentManifest({
+    ...validManifest(),
+    contentType: 'application/pdf; charset=binary',
+  });
+
+  assert.equal(parsed.documentType, 'pdf');
 });
 
 test('rejeita open-data sem licença explícita', () => {
