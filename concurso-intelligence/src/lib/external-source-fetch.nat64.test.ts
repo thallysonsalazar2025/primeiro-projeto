@@ -36,7 +36,7 @@ test('rejeita prefixo NAT64 de uso local retornado pela resolução DNS', async 
 test('permite NAT64 público retornado pela resolução DNS', async () => {
   const result = await fetchExternalSource('https://example.org/a', {
     fetchImpl: async () => response('abc'),
-    resolveHost: async () => ['64:ff9b::c000:201'],
+    resolveHost: async () => ['64:ff9b::808:808'],
   });
 
   assert.equal(Buffer.from(result.bytes).toString('utf8'), 'abc');
