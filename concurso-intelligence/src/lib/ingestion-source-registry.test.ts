@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { parseIngestionSourceRegistry } from './ingestion-source-registry.ts';
+import { parseIngestionSourceRegistry, requireIngestionUsageBasis } from './ingestion-source-registry.ts';
 
 test('aceita registry HTTPS válido com ativação explícita', () => {
   const registry = parseIngestionSourceRegistry({
@@ -21,6 +21,14 @@ test('aceita registry HTTPS válido com ativação explícita', () => {
   assert.equal(registry.sources[0]?.enabled, true);
   assert.equal(registry.sources[0]?.usageBasis, 'official');
   assert.equal(registry.sources[0]?.url, 'https://example.gov.br/questions.json');
+});
+
+test('exige base de uso quando o fluxo precisa publicar conteúdo externo', () => {
+  assert.equal(requireIngestionUsageBasis('official', '--usage-basis'), 'official');
+  assert.equal(requireIngestionUsageBasis('open-data', '--usage-basis'), 'open-data');
+  assert.equal(requireIngestionUsageBasis('licensed', '--usage-basis'), 'licensed');
+  assert.throws(() => requireIngestionUsageBasis(undefined, '--usage-basis'), /--usage-basis é obrigatório/);
+  assert.throws(() => requireIngestionUsageBasis('unknown', '--usage-basis'), /official, open-data ou licensed/);
 });
 
 test('mantém fonte desabilitada quando enabled é omitido', () => {
