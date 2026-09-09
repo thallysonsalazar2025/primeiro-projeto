@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fetchExternalSource } from '../src/lib/external-source-fetch.ts';
 import { assertJsonEnqueuePayload } from '../src/lib/external-source-json.ts';
 import { parseMaxIngestionFileBytes } from '../src/lib/ingestion-file-size.ts';
-import { parseIngestionUsageBasis } from '../src/lib/ingestion-source-registry.ts';
+import { parseIngestionUsageBasis, requireIngestionUsageBasis } from '../src/lib/ingestion-source-registry.ts';
 import { parseIngestionSourceTimeoutMs } from '../src/lib/ingestion-source-timeout.ts';
 import {
   contentAddressedEnqueueName,
@@ -35,7 +35,10 @@ async function main() {
   const enqueue = parseKind(argValue('--enqueue'));
   const name = argValue('--name');
   const namePrefix = argValue('--name-prefix');
-  const usageBasis = parseIngestionUsageBasis(argValue('--usage-basis'), '--usage-basis');
+  const rawUsageBasis = argValue('--usage-basis');
+  const usageBasis = enqueue
+    ? requireIngestionUsageBasis(rawUsageBasis, '--usage-basis')
+    : parseIngestionUsageBasis(rawUsageBasis, '--usage-basis');
 
   if (!url || (!output && !enqueue) || (enqueue && !name && !namePrefix)) {
     throw new Error(
@@ -80,7 +83,7 @@ async function main() {
       bytes: result.bytes.byteLength,
       output: planned.outputPath,
       enqueueKind: enqueue,
-      usageBasis: usageBasis ?? null,
+      usageBasis,
     }, null, 2)}\n`;
 
     await publishAtomically(planned.outputPath, planned.manifestPath, result.bytes, manifestBody);
@@ -91,10 +94,9 @@ async function main() {
     const latestPaths = planLatestPublicationPaths(inboxRoot, enqueue, namePrefix);
     const publication = await withPublicationLock(latestPaths.lockPath, async () => {
       const latest = await readLatestPublication(latestPaths.latestPath);
-      const normalizedUsageBasis = usageBasis ?? null;
       if (
         latest?.sha256.toLowerCase() === result.sha256.toLowerCase()
-        && (latest.usageBasis ?? null) === normalizedUsageBasis
+        && latest.usageBasis === usageBasis
       ) {
         return { skipped: true as const, planned: { outputPath: latest.output, manifestPath: latest.manifest } };
       }
@@ -108,7 +110,7 @@ async function main() {
         sha256: result.sha256.toLowerCase(),
         output: planned.outputPath,
         manifest: planned.manifestPath,
-        usageBasis: normalizedUsageBasis,
+        usageBasis,
       });
       return { skipped: false as const, planned };
     });
