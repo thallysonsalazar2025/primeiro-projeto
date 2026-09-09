@@ -5,6 +5,8 @@ import {
   type OfficialDocumentType,
 } from './official-document-discovery.ts';
 
+type ExternalSourceFetchOptions = NonNullable<Parameters<typeof fetchExternalSource>[1]>;
+
 export type OfficialCatalogFetchResult = {
   sourceUrl: string;
   finalUrl: string;
@@ -20,8 +22,8 @@ export async function fetchOfficialCatalogCandidates(
     allowedTypes?: OfficialDocumentType[];
     maxBytes?: number;
     timeoutMs?: number;
-    fetchImpl?: Parameters<typeof fetchExternalSource>[1]['fetchImpl'];
-    resolveHost?: Parameters<typeof fetchExternalSource>[1]['resolveHost'];
+    fetchImpl?: ExternalSourceFetchOptions['fetchImpl'];
+    resolveHost?: ExternalSourceFetchOptions['resolveHost'];
     now?: () => Date;
   },
 ): Promise<OfficialCatalogFetchResult> {
