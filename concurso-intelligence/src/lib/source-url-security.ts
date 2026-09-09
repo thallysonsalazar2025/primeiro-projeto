@@ -68,6 +68,19 @@ function isPrivateIpv4(hostname: string) {
     || a >= 224;
 }
 
+function mappedIpv4FromIpv6(hostname: string) {
+  if (!hostname.startsWith('::ffff:')) return null;
+  const mapped = hostname.slice('::ffff:'.length);
+  if (isPrivateIpv4(mapped)) return mapped;
+
+  const hextets = mapped.split(':');
+  if (hextets.length !== 2 || hextets.some((part) => !/^[0-9a-f]{1,4}$/i.test(part))) return null;
+
+  const high = Number.parseInt(hextets[0], 16);
+  const low = Number.parseInt(hextets[1], 16);
+  return `${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`;
+}
+
 function isPrivateLiteralHost(rawHostname: string) {
   const hostname = rawHostname.toLowerCase().replace(/^\[|\]$/g, '');
   if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local')) return true;
@@ -79,9 +92,8 @@ function isPrivateLiteralHost(rawHostname: string) {
   if (/^fe[89ab]/.test(hostname)) return true;
   if (hostname.startsWith('ff')) return true;
   if (hostname.startsWith('2001:db8:')) return true;
-  if (hostname.startsWith('::ffff:')) {
-    return isPrivateIpv4(hostname.slice('::ffff:'.length));
-  }
+  const mappedIpv4 = mappedIpv4FromIpv6(hostname);
+  if (mappedIpv4) return isPrivateIpv4(mappedIpv4);
 
   return false;
 }
