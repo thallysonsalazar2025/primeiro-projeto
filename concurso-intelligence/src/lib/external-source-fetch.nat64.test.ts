@@ -8,6 +8,7 @@ function response(body: string) {
 
 test('rejeita hostname cuja resolução DNS use NAT64 para IPv4 privado', async () => {
   for (const address of [
+    '64:ff9b::1',
     '64:ff9b::7f00:1',
     '64:ff9b::a00:1',
     '64:ff9b::ac10:1',
