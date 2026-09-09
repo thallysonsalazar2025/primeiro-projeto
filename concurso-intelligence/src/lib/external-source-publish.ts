@@ -1,6 +1,6 @@
 import { link, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
-import { readIngestionFileWithinLimit } from './ingestion-file-size.ts';
+import { decodeIngestionUtf8, readIngestionFileWithinLimit } from './ingestion-file-size.ts';
 
 export type IngestionKind = 'questions' | 'rankings';
 
@@ -62,7 +62,7 @@ export function planLatestPublicationPaths(inboxRoot: string, kind: IngestionKin
 export async function readLatestPublication(latestPath: string): Promise<LatestPublication | null> {
   try {
     const raw = await readIngestionFileWithinLimit(latestPath, LATEST_PUBLICATION_MAX_BYTES);
-    const parsed = JSON.parse(raw.toString('utf8')) as Partial<LatestPublication>;
+    const parsed = JSON.parse(decodeIngestionUtf8(raw)) as Partial<LatestPublication>;
     if (
       parsed.schemaVersion !== 1
       || !Number.isSafeInteger(parsed.sequence)
