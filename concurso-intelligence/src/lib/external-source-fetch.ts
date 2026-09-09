@@ -179,12 +179,16 @@ async function fetchWithSafeRedirects(
   fetchImpl: FetchLike,
   resolveHost: ResolveHost,
   maxRedirects: number,
+  allowedHosts: Set<string> | null,
   signal?: AbortSignal,
 ) {
   let current = source;
 
   for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
     if (signal?.aborted) throw signal.reason;
+    if (allowedHosts && !allowedHosts.has(current.hostname.toLowerCase())) {
+      throw new Error(`Fonte externa redirecionou para host fora da allowlist: ${current.hostname}.`);
+    }
     await assertPublicDestination(current, resolveHost);
     const response = await fetchImpl(current, {
       redirect: 'manual',
@@ -215,6 +219,7 @@ export async function fetchExternalSource(
     maxRedirects?: number;
     timeoutMs?: number;
     now?: () => Date;
+    allowedHosts?: string[];
   } = {},
 ): Promise<ExternalSourceFetchResult> {
   const source = assertHttpsUrl(rawUrl);
@@ -230,6 +235,15 @@ export async function fetchExternalSource(
   if (timeoutMs !== undefined && (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > 2_147_483_647)) {
     throw new Error('Timeout da fonte externa inválido.');
   }
+  const allowedHosts = options.allowedHosts
+    ? new Set(options.allowedHosts.map((host) => host.trim().toLowerCase()).filter(Boolean))
+    : null;
+  if (allowedHosts && allowedHosts.size === 0) {
+    throw new Error('Allowlist de hosts da fonte externa deve conter ao menos um host.');
+  }
+  if (allowedHosts && !allowedHosts.has(source.hostname.toLowerCase())) {
+    throw new Error(`Host inicial fora da allowlist: ${source.hostname}.`);
+  }
 
   const fetchImpl = options.fetchImpl ?? fetch;
   const resolveHost = options.resolveHost ?? (options.fetchImpl ? async () => ['93.184.216.34'] : defaultResolveHost);
@@ -244,6 +258,7 @@ export async function fetchExternalSource(
       fetchImpl,
       resolveHost,
       maxRedirects,
+      allowedHosts,
       controller?.signal,
     );
 

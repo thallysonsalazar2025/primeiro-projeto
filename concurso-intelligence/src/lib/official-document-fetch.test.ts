@@ -15,6 +15,7 @@ function baseInput() {
 
 test('baixa documento oficial e produz manifesto auditável', async () => {
   const result = await fetchOfficialDocument(baseInput(), {
+    allowedHosts: ['www.gov.br'],
     fetchImpl: async () => new Response(new Uint8Array([1, 2, 3]), {
       status: 200,
       headers: { 'content-type': 'application/pdf' },
@@ -36,6 +37,7 @@ test('baixa documento oficial e produz manifesto auditável', async () => {
 test('falha fechado quando o servidor entrega mídia incompatível', async () => {
   await assert.rejects(
     () => fetchOfficialDocument(baseInput(), {
+      allowedHosts: ['www.gov.br'],
       fetchImpl: async () => new Response('<html>erro</html>', {
         status: 200,
         headers: { 'content-type': 'text/html' },
@@ -45,9 +47,10 @@ test('falha fechado quando o servidor entrega mídia incompatível', async () =>
   );
 });
 
-test('preserva finalUrl depois de redirect seguro', async () => {
+test('preserva finalUrl depois de redirect para host explicitamente permitido', async () => {
   let calls = 0;
   const result = await fetchOfficialDocument(baseInput(), {
+    allowedHosts: ['www.gov.br', 'cdn.gov.br'],
     fetchImpl: async () => {
       calls += 1;
       if (calls === 1) {
@@ -65,4 +68,28 @@ test('preserva finalUrl depois de redirect seguro', async () => {
 
   assert.equal(result.manifest.finalUrl, 'https://cdn.gov.br/provas/prova.pdf');
   assert.equal(result.manifest.documentUrl, 'https://www.gov.br/provas/prova.pdf');
+});
+
+test('bloqueia redirect para host fora da allowlist oficial', async () => {
+  let calls = 0;
+  await assert.rejects(
+    () => fetchOfficialDocument(baseInput(), {
+      allowedHosts: ['www.gov.br'],
+      fetchImpl: async () => {
+        calls += 1;
+        if (calls === 1) {
+          return new Response(null, {
+            status: 302,
+            headers: { location: 'https://evil.example/provas/prova.pdf' },
+          });
+        }
+        return new Response(new Uint8Array([9]), {
+          status: 200,
+          headers: { 'content-type': 'application/pdf' },
+        });
+      },
+    }),
+    /fora da allowlist/,
+  );
+  assert.equal(calls, 1);
 });
