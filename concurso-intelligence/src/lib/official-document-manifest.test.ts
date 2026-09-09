@@ -55,6 +55,15 @@ test('aceita open-data com licença auditável', () => {
   assert.equal(parsed.license, 'CC BY 4.0');
 });
 
+test('rejeita fonte licenciada sem licença explícita mesmo com termsUrl', () => {
+  assert.throws(() => parseOfficialDocumentManifest({
+    ...validManifest(),
+    usageBasis: 'licensed',
+    license: null,
+    termsUrl: 'https://example.org/terms',
+  }));
+});
+
 test('rejeita sha256 inválido e tamanho vazio', () => {
   assert.throws(() => parseOfficialDocumentManifest({
     ...validManifest(),
