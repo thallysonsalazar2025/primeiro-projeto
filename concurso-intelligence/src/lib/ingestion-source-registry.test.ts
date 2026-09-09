@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { parseIngestionSourceRegistry, requireIngestionUsageBasis } from './ingestion-source-registry.ts';
+import {
+  parseIngestionSourceRegistry,
+  parseIngestionSourceRegistryBytes,
+  requireIngestionUsageBasis,
+} from './ingestion-source-registry.ts';
 
 test('aceita registry HTTPS válido com ativação explícita', () => {
   const registry = parseIngestionSourceRegistry({
@@ -21,6 +25,14 @@ test('aceita registry HTTPS válido com ativação explícita', () => {
   assert.equal(registry.sources[0]?.enabled, true);
   assert.equal(registry.sources[0]?.usageBasis, 'official');
   assert.equal(registry.sources[0]?.url, 'https://example.gov.br/questions.json');
+});
+
+test('rejeita registry com UTF-8 malformado antes do JSON.parse', () => {
+  const prefix = Buffer.from('{"schemaVersion":1,"sources":[],"note":"', 'utf8');
+  const suffix = Buffer.from('"}', 'utf8');
+  const malformed = Buffer.concat([prefix, Buffer.from([0xc3, 0x28]), suffix]);
+
+  assert.throws(() => parseIngestionSourceRegistryBytes(malformed), /UTF-8 válido/);
 });
 
 test('exige base de uso quando o fluxo precisa publicar conteúdo externo', () => {

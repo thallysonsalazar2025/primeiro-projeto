@@ -1,3 +1,4 @@
+import { decodeIngestionUtf8 } from './ingestion-file-size.ts';
 import { validatePublicHttpUrl } from './source-url-security.ts';
 
 export type IngestionUsageBasis = 'official' | 'open-data' | 'licensed';
@@ -108,4 +109,8 @@ export function parseIngestionSourceRegistry(input: unknown): IngestionSourceReg
   });
 
   return { schemaVersion: 1, sources };
+}
+
+export function parseIngestionSourceRegistryBytes(bytes: Uint8Array): IngestionSourceRegistry {
+  return parseIngestionSourceRegistry(JSON.parse(decodeIngestionUtf8(bytes)) as unknown);
 }
