@@ -35,6 +35,21 @@ function isPrivateIpv4(address: string) {
     || a >= 224;
 }
 
+function ipv4FromHexPair(value: string) {
+  const hextets = value.split(':');
+  if (hextets.length !== 2 || hextets.some((part) => !/^[0-9a-f]{1,4}$/i.test(part))) return null;
+
+  const high = Number.parseInt(hextets[0], 16);
+  const low = Number.parseInt(hextets[1], 16);
+  return `${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`;
+}
+
+function nat64Ipv4FromIpv6(address: string) {
+  const wellKnownPrefix = '64:ff9b::';
+  if (!address.startsWith(wellKnownPrefix)) return null;
+  return ipv4FromHexPair(address.slice(wellKnownPrefix.length));
+}
+
 function isPrivateIp(address: string) {
   const normalized = address.toLowerCase();
   const family = isIP(normalized);
@@ -46,10 +61,14 @@ function isPrivateIp(address: string) {
   if (/^fe[89ab]/.test(normalized)) return true;
   if (normalized.startsWith('ff')) return true;
   if (normalized.startsWith('2001:db8:')) return true;
+  if (normalized.startsWith('64:ff9b:1:')) return true;
   if (normalized.startsWith('::ffff:')) {
     const mapped = normalized.slice('::ffff:'.length);
     return isIP(mapped) !== 4 || isPrivateIpv4(mapped);
   }
+
+  const nat64Ipv4 = nat64Ipv4FromIpv6(normalized);
+  if (nat64Ipv4) return isPrivateIpv4(nat64Ipv4);
 
   return false;
 }
