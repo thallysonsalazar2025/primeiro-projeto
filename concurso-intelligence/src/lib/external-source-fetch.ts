@@ -37,10 +37,11 @@ function isPrivateIpv4(address: string) {
 
 function ipv4FromHexPair(value: string) {
   const hextets = value.split(':');
-  if (hextets.length !== 2 || hextets.some((part) => !/^[0-9a-f]{1,4}$/i.test(part))) return null;
+  if (hextets.length < 1 || hextets.length > 2 || hextets.some((part) => !/^[0-9a-f]{1,4}$/i.test(part))) return null;
 
-  const high = Number.parseInt(hextets[0], 16);
-  const low = Number.parseInt(hextets[1], 16);
+  const [highHex, lowHex] = hextets.length === 1 ? ['0', hextets[0]] : hextets;
+  const high = Number.parseInt(highHex, 16);
+  const low = Number.parseInt(lowHex, 16);
   return `${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`;
 }
 
