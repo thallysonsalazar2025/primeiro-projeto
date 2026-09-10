@@ -24,7 +24,7 @@ function manifest(bytes: Uint8Array, documentUrl: string, sourceUrl = BNDES_2024
   };
 }
 
-const EXAM_URL = 'https://www.bndes.gov.br/provas/objetiva-analise-de-sistemas-desenvolvimento.pdf';
+const EXAM_URL = 'https://www.bndes.gov.br/provas/objetiva%20analise%20de%20sistemas%20desenvolvimento.pdf';
 const ANSWER_URL = 'https://www.bndes.gov.br/provas/gabarito-final.pdf';
 
 async function withSnapshot(run: (dir: string) => Promise<void>) {
