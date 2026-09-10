@@ -31,18 +31,29 @@ const metadata = {
   },
 };
 
-test('extrai questões e cruza gabarito antes da normalização', () => {
+const answerKey = (entries: string) => [
+  'ANÁLISE DE SISTEMAS - DESENVOLVIMENTO',
+  entries,
+  'PERFIL: ANÁLISE DE SISTEMAS - SUPORTE',
+  '1 A 2 B 3 C',
+].join('\n');
+
+const fiveChoices = [
+  'A) Primeira resposta',
+  'B) Segunda resposta',
+  'C) Terceira resposta',
+  'D) Quarta resposta',
+  'E) Quinta resposta',
+];
+
+test('extrai questões e cruza somente a seção Desenvolvimento do gabarito', () => {
   const extraction = buildBndes2024OfficialExtraction(
     [
       {
         page: 10,
         text: [
           '1. Qual alternativa descreve melhor o conceito?',
-          'A) Primeira resposta',
-          'B) Segunda resposta',
-          'C) Terceira resposta',
-          'D) Quarta resposta',
-          'E) Quinta resposta',
+          ...fiveChoices,
           '2. Questão anulada pela banca',
           'A) Uma',
           'B) Duas',
@@ -52,7 +63,7 @@ test('extrai questões e cruza gabarito antes da normalização', () => {
         ].join('\n'),
       },
     ],
-    '1 B 2 ANULADA',
+    answerKey('1 B 2 ANULADA'),
     metadata,
   );
 
@@ -65,31 +76,82 @@ test('extrai questões e cruza gabarito antes da normalização', () => {
   const batch = normalizeOfficialQuestionExtraction(extraction);
   assert.equal(batch.questions[0]?.choices.filter((choice) => choice.isCorrect).length, 1);
   assert.equal(batch.questions[1]?.choices.filter((choice) => choice.isCorrect).length, 0);
+  assert.equal(batch.answerKey?.url, metadata.answerKey.url);
 });
 
-test('preserva texto de enunciado e alternativa em múltiplas linhas', () => {
+test('aceita marcadores reais com número isolado e alternativas parentetizadas', () => {
   const questions = parseBndes2024ExamPages([
     {
       page: 3,
       text: [
-        '7) Considere o cenário a seguir',
-        'com uma continuação do enunciado.',
-        'A) alternativa que continua',
-        'na linha seguinte',
-        'B) segunda alternativa',
+        '7',
+        'Considere o cenário a seguir',
+        '(A) alternativa um',
+        '(B) alternativa dois',
+        '(C) alternativa três',
+        '(D) alternativa quatro',
+        '(E) alternativa cinco',
       ].join('\n'),
     },
   ]);
 
-  assert.equal(questions[0]?.statement, 'Considere o cenário a seguir com uma continuação do enunciado.');
-  assert.equal(questions[0]?.choices[0]?.text, 'alternativa que continua na linha seguinte');
+  assert.equal(questions[0]?.number, 7);
+  assert.equal(questions[0]?.choices.length, 5);
+  assert.equal(questions[0]?.choices[0]?.label, 'A');
+});
+
+test('preserva estrutura multiline sem colapsar quebras significativas', () => {
+  const questions = parseBndes2024ExamPages([
+    {
+      page: 3,
+      text: [
+        '7) Considere o SQL:',
+        'SELECT *',
+        'FROM tabela',
+        'A) alternativa que continua',
+        'na linha seguinte',
+        'B) segunda alternativa',
+        'C) terceira alternativa',
+        'D) quarta alternativa',
+        'E) quinta alternativa',
+      ].join('\n'),
+    },
+  ]);
+
+  assert.equal(questions[0]?.statement, 'Considere o SQL:\nSELECT *\nFROM tabela');
+  assert.equal(questions[0]?.choices[0]?.text, 'alternativa que continua\nna linha seguinte');
+});
+
+test('ignora mobiliário de página em vez de incorporá-lo à alternativa', () => {
+  const questions = parseBndes2024ExamPages([
+    {
+      page: 8,
+      text: [
+        '1. Pergunta',
+        ...fiveChoices,
+        'FUNDAÇÃO CESGRANRIO',
+        'BNDES 2024',
+      ].join('\n'),
+    },
+  ]);
+
+  assert.equal(questions[0]?.choices[4]?.text, 'Quinta resposta');
+});
+
+test('falha fechada se faltar qualquer alternativa A-E', () => {
+  assert.throws(
+    () => parseBndes2024ExamPages([
+      { page: 1, text: '1. Pergunta\nA) Um\nB) Dois\nC) Três\nD) Quatro' },
+    ]),
+    /exatamente as alternativas A-E/,
+  );
 });
 
 test('falha fechada para questão sem gabarito', () => {
   assert.throws(
     () => buildBndes2024OfficialExtraction(
-      [{ page: 1, text: '1. Pergunta\nA) Um\nB) Dois' }],
-      '2 A',
+      [{ page: 1, text: ['1. Pergunta', ...fiveChoices].join('\n') }],
+      answerKey('2 A'),
       metadata,
     ),
     /questão 1 não encontrada no gabarito final/,
@@ -99,24 +161,36 @@ test('falha fechada para questão sem gabarito', () => {
 test('falha fechada para gabarito com questão ausente no caderno', () => {
   assert.throws(
     () => buildBndes2024OfficialExtraction(
-      [{ page: 1, text: '1. Pergunta\nA) Um\nB) Dois' }],
-      '1 A 2 B',
+      [{ page: 1, text: ['1. Pergunta', ...fiveChoices].join('\n') }],
+      answerKey('1 A 2 B'),
       metadata,
     ),
     /gabarito contém questões ausentes no caderno: 2/,
   );
 });
 
-test('rejeita duplicidade de número no caderno e no gabarito', () => {
+test('rejeita duplicidade dentro da seção Desenvolvimento sem ser confundido por outro perfil', () => {
   assert.throws(
-    () => parseBndes2024ExamPages([
-      { page: 1, text: '1. A\nA) Um\nB) Dois\n1. B\nA) Um\nB) Dois' },
-    ]),
-    /questão 1 duplicada no caderno/,
+    () => parseBndes2024AnswerKey(answerKey('1 A 1 B')),
+    /questão 1 duplicada no gabarito da seção Desenvolvimento/,
+  );
+
+  const answers = parseBndes2024AnswerKey(answerKey('1 A 2 B'));
+  assert.equal(answers.size, 2);
+});
+
+test('rejeita gabarito sem seção Desenvolvimento e exige proveniência', () => {
+  assert.throws(
+    () => parseBndes2024AnswerKey('1 A 2 B'),
+    /seção de Análise de Sistemas - Desenvolvimento não encontrada/,
   );
 
   assert.throws(
-    () => parseBndes2024AnswerKey('1 A 1 B'),
-    /questão 1 duplicada no gabarito/,
+    () => buildBndes2024OfficialExtraction(
+      [{ page: 1, text: ['1. Pergunta', ...fiveChoices].join('\n') }],
+      answerKey('1 A'),
+      { ...metadata, answerKey: { url: '' } },
+    ),
+    /URL do gabarito final é obrigatória/,
   );
 });
