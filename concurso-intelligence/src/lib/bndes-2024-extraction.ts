@@ -157,7 +157,8 @@ export function parseBndes2024ExamPages(pages: Bndes2024TextPage[]) {
         continue;
       }
 
-      if (!current) continue;
+      const activeQuestion = current as ExtractedOfficialQuestion | null;
+      if (!activeQuestion) continue;
 
       const choiceMatch = CHOICE_START.exec(line);
       if (choiceMatch) {
@@ -170,7 +171,7 @@ export function parseBndes2024ExamPages(pages: Bndes2024TextPage[]) {
       }
 
       if (currentChoice) currentChoice.text = appendStructuredText(currentChoice.text, line);
-      else current.statement = appendStructuredText(current.statement, line);
+      else activeQuestion.statement = appendStructuredText(activeQuestion.statement, line);
     }
   }
 
