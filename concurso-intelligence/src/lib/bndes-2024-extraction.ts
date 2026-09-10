@@ -36,7 +36,7 @@ function appendStructuredText(current: string, next: string) {
 function isPageFurniture(line: string) {
   const normalized = normalizePdfLine(line);
   return (
-    /^\d+\s*$/.test(normalized)
+    /^P[ÁA]GINA\s+\d+\s*$/iu.test(normalized)
     || /^BNDES\s+2024$/iu.test(normalized)
     || /^CONCURSO\s+P[ÚU]BLICO/iu.test(normalized)
     || /^FUNDA[ÇC][ÃA]O\s+CESGRANRIO/iu.test(normalized)
