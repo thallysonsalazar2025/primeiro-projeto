@@ -5,7 +5,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { BNDES_2024_SOURCE_URL } from './bndes-2024-source.ts';
-import { buildBndes2024ExtractionFromSnapshot } from './bndes-2024-pipeline.ts';
+import {
+  buildBndes2024ExtractionFromSnapshot,
+  buildBndes2024ImportBatchFromSnapshot,
+} from './bndes-2024-pipeline.ts';
 
 function sha256(bytes: Uint8Array) {
   return createHash('sha256').update(bytes).digest('hex');
@@ -68,6 +71,17 @@ const answerKeyText = [
   '1 C',
 ].join('\n');
 
+function fixtureExtractor(exam: Uint8Array, answerKey: Uint8Array) {
+  return async (bytes: Uint8Array, role: 'exam' | 'answerKey') => {
+    if (role === 'exam') {
+      assert.deepEqual(bytes, exam);
+      return [{ page: 1, text: examPageText }];
+    }
+    assert.deepEqual(bytes, answerKey);
+    return [{ page: 1, text: answerKeyText }];
+  };
+}
+
 test('orquestra snapshot validado até OfficialQuestionExtraction preservando proveniência', async () => {
   const snapshot = await createSnapshot();
   const roles: string[] = [];
@@ -77,12 +91,7 @@ test('orquestra snapshot validado até OfficialQuestionExtraction preservando pr
       snapshot.dir,
       async (bytes, role) => {
         roles.push(role);
-        if (role === 'exam') {
-          assert.deepEqual(bytes, snapshot.exam);
-          return [{ page: 1, text: examPageText }];
-        }
-        assert.deepEqual(bytes, snapshot.answerKey);
-        return [{ page: 1, text: answerKeyText }];
+        return fixtureExtractor(snapshot.exam, snapshot.answerKey)(bytes, role);
       },
     );
 
@@ -93,6 +102,36 @@ test('orquestra snapshot validado até OfficialQuestionExtraction preservando pr
     assert.equal(extraction.source.sourceHash, sha256(snapshot.exam));
     assert.equal(extraction.answerKey?.url.includes('gabarito%20final.pdf'), true);
     assert.equal(extraction.exam.sourceSha256, sha256(snapshot.exam));
+  } finally {
+    await rm(snapshot.dir, { recursive: true, force: true });
+  }
+});
+
+test('produz QuestionImportBatch validado e pronto para deduplicação/persistência', async () => {
+  const snapshot = await createSnapshot();
+
+  try {
+    const batch = await buildBndes2024ImportBatchFromSnapshot(
+      snapshot.dir,
+      fixtureExtractor(snapshot.exam, snapshot.answerKey),
+    );
+
+    assert.equal(batch.source.type, 'OFFICIAL_PDF');
+    assert.equal(batch.board.acronym, 'CESGRANRIO');
+    assert.equal(batch.exam.year, 2024);
+    assert.equal(batch.questions.length, 1);
+    assert.equal(batch.questions[0]?.number, 1);
+    assert.equal(batch.questions[0]?.sourcePage, 1);
+    assert.deepEqual(
+      batch.questions[0]?.choices.map(({ label, isCorrect }) => ({ label, isCorrect })),
+      [
+        { label: 'A', isCorrect: false },
+        { label: 'B', isCorrect: false },
+        { label: 'C', isCorrect: true },
+        { label: 'D', isCorrect: false },
+        { label: 'E', isCorrect: false },
+      ],
+    );
   } finally {
     await rm(snapshot.dir, { recursive: true, force: true });
   }
