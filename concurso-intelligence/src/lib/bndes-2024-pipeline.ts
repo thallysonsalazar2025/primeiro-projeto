@@ -3,7 +3,11 @@ import {
   type Bndes2024TextPage,
 } from './bndes-2024-extraction.ts';
 import { loadBndes2024Snapshot } from './bndes-2024-snapshot.ts';
-import type { OfficialQuestionExtraction } from './official-question-extraction.ts';
+import {
+  normalizeOfficialQuestionExtraction,
+  type OfficialQuestionExtraction,
+} from './official-question-extraction.ts';
+import type { QuestionImportBatch } from './question-import.ts';
 
 export type Bndes2024PdfRole = 'exam' | 'answerKey';
 
@@ -81,4 +85,12 @@ export async function buildBndes2024ExtractionFromSnapshot(
       sourceSha256: snapshot.exam.manifest.sha256,
     },
   });
+}
+
+export async function buildBndes2024ImportBatchFromSnapshot(
+  snapshotDir: string,
+  extractPdfText: Bndes2024PdfTextExtractor,
+): Promise<QuestionImportBatch> {
+  const extraction = await buildBndes2024ExtractionFromSnapshot(snapshotDir, extractPdfText);
+  return normalizeOfficialQuestionExtraction(extraction);
 }
