@@ -98,3 +98,13 @@ test('falha fechado para HTML com UTF-8 inválido', () => {
     /UTF-8 válido/,
   );
 });
+
+
+test('decodifica entidades HTML nomeadas em href oficial', () => {
+  const result = discoverOfficialDocumentCandidates(
+    html('<a href="/provas&sol;analise&period;pdf">Prova</a>'),
+    'https://www.gov.br/catalogo',
+    { allowedTypes: ['pdf'] },
+  );
+  assert.deepEqual(result.map((candidate) => candidate.documentUrl), ['https://www.gov.br/provas/analise.pdf']);
+});
