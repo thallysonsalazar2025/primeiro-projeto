@@ -1,3 +1,4 @@
+import { decodeHTMLAttribute } from 'entities';
 import { decodeIngestionUtf8 } from './ingestion-file-size.ts';
 import { validatePublicHttpUrl } from './source-url-security.ts';
 
@@ -11,29 +12,9 @@ export type OfficialDocumentCandidate = {
 
 type HtmlTag = { name: string; attributes: Map<string, string> };
 
-const NAMED_REFERENCES: Record<string, string> = {
-  amp: '&',
-  apos: "'",
-  gt: '>',
-  lt: '<',
-  quot: '"',
-};
-
 function decodeHtmlReferences(value: string) {
-  return value.replace(/&(#(?:x[0-9a-f]+|\d+)|[a-z][a-z0-9]+);/gi, (whole, reference: string) => {
-    if (reference[0] === '#') {
-      const hex = reference[1]?.toLowerCase() === 'x';
-      const digits = reference.slice(hex ? 2 : 1);
-      const codePoint = Number.parseInt(digits, hex ? 16 : 10);
-      if (!Number.isInteger(codePoint) || codePoint <= 0 || codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)) {
-        return '\uFFFD';
-      }
-      return String.fromCodePoint(codePoint);
-    }
-    return NAMED_REFERENCES[reference.toLowerCase()] ?? whole;
-  });
+  return decodeHTMLAttribute(value);
 }
-
 function parseAttributes(raw: string) {
   const attributes = new Map<string, string>();
   let index = 0;
