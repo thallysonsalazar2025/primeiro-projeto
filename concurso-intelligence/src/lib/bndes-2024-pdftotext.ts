@@ -4,6 +4,7 @@ import type { Bndes2024TextPage } from './bndes-2024-extraction.ts';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
+const MAX_NODE_TIMEOUT_MS = 2_147_483_647;
 
 export function splitPdftotextPages(text: string): Bndes2024TextPage[] {
   return text
@@ -24,6 +25,13 @@ function validatePositiveInteger(value: number, label: string) {
   }
 }
 
+function validateTimeout(timeoutMs: number) {
+  validatePositiveInteger(timeoutMs, 'timeout do pdftotext');
+  if (timeoutMs > MAX_NODE_TIMEOUT_MS) {
+    throw new Error(`BNDES 2024: timeout do pdftotext deve ser <= ${MAX_NODE_TIMEOUT_MS}ms.`);
+  }
+}
+
 async function runPdftotext(
   bytes: Uint8Array,
   role: Bndes2024PdfRole,
@@ -32,7 +40,7 @@ async function runPdftotext(
   const command = options.command ?? 'pdftotext';
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxOutputBytes = options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
-  validatePositiveInteger(timeoutMs, 'timeout do pdftotext');
+  validateTimeout(timeoutMs);
   validatePositiveInteger(maxOutputBytes, 'limite de saída do pdftotext');
 
   return new Promise((resolve, reject) => {
