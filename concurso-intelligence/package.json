@@ -22,6 +22,7 @@
     "ingestion:sources": "node --env-file-if-exists=.env --experimental-strip-types scripts/fetch-configured-sources.ts",
     "ingestion:normalize:official": "node --experimental-strip-types scripts/normalize-official-question-extraction.ts",
     "ingestion:acquire:bndes-2024": "node --env-file-if-exists=.env --experimental-strip-types scripts/acquire-bndes-2024-development.ts",
+    "ingestion:extract:bndes-2024": "node --experimental-strip-types scripts/extract-bndes-2024-development.ts",
     "worker:ingestion": "node --experimental-strip-types scripts/ingestion-worker.ts"
   },
   "dependencies": {
