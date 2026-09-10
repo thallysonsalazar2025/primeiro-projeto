@@ -2,21 +2,23 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { BNDES_2024_SOURCE_URL, selectBndes2024DevelopmentDocuments } from './bndes-2024-source.ts';
 import { decodeIngestionUtf8, readIngestionFileWithinLimit } from './ingestion-file-size.ts';
-import { parseOfficialDocumentManifest } from './official-document-manifest.ts';
+import { parseOfficialDocumentManifest, type OfficialDocumentManifest } from './official-document-manifest.ts';
 
 const BNDES_2024_PDF_MAX_BYTES = 2 * 1024 * 1024;
 const BNDES_2024_MANIFEST_MAX_BYTES = 64 * 1024;
 
+type Bndes2024SnapshotArtifact = { bytes: Uint8Array; manifest: OfficialDocumentManifest };
+
 export type Bndes2024Snapshot = {
-  exam: { bytes: Uint8Array; manifest: ReturnType<typeof parseOfficialDocumentManifest> };
-  answerKey: { bytes: Uint8Array; manifest: ReturnType<typeof parseOfficialDocumentManifest> };
+  exam: Bndes2024SnapshotArtifact;
+  answerKey: Bndes2024SnapshotArtifact;
 };
 
 function sha256(bytes: Uint8Array) {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
-async function loadArtifact(snapshotDir: string, basename: 'exam' | 'answer-key') {
+async function loadArtifact(snapshotDir: string, basename: 'exam' | 'answer-key'): Promise<Bndes2024SnapshotArtifact> {
   const pdfPath = path.join(snapshotDir, `${basename}.pdf`);
   const manifestPath = path.join(snapshotDir, `${basename}.manifest.json`);
   const [bytes, rawManifestBytes] = await Promise.all([
@@ -59,12 +61,12 @@ export async function loadBndes2024Snapshot(snapshotDir: string): Promise<Bndes2
     {
       sourceUrl: exam.manifest.sourceUrl,
       documentUrl: exam.manifest.documentUrl,
-      documentType: exam.manifest.documentType,
+      documentType: 'pdf',
     },
     {
       sourceUrl: answerKey.manifest.sourceUrl,
       documentUrl: answerKey.manifest.documentUrl,
-      documentType: answerKey.manifest.documentType,
+      documentType: 'pdf',
     },
   ]);
   if (selection.exam.documentUrl !== exam.manifest.documentUrl || selection.answerKey.documentUrl !== answerKey.manifest.documentUrl) {
