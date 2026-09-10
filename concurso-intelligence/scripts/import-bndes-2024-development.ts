@@ -19,10 +19,39 @@ function runQuestionImporter(batchPath: string, reportPath?: string) {
       shell: false,
     });
 
-    child.once('error', reject);
+    let forwardedSignal: NodeJS.Signals | undefined;
+
+    const forwardSignal = (signal: NodeJS.Signals) => {
+      forwardedSignal = signal;
+      if (child.exitCode === null && child.signalCode === null) {
+        child.kill(signal);
+      }
+    };
+
+    const onSigint = () => forwardSignal('SIGINT');
+    const onSigterm = () => forwardSignal('SIGTERM');
+
+    process.once('SIGINT', onSigint);
+    process.once('SIGTERM', onSigterm);
+
+    const cleanupSignalHandlers = () => {
+      process.off('SIGINT', onSigint);
+      process.off('SIGTERM', onSigterm);
+    };
+
+    child.once('error', (error) => {
+      cleanupSignalHandlers();
+      reject(error);
+    });
     child.once('exit', (code, signal) => {
-      if (code === 0) resolve();
-      else reject(new Error(`Importador de questões falhou (code=${code ?? 'null'}, signal=${signal ?? 'null'}).`));
+      cleanupSignalHandlers();
+      if (forwardedSignal) {
+        reject(new Error(`Importação interrompida por ${forwardedSignal}.`));
+      } else if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Importador de questões falhou (code=${code ?? 'null'}, signal=${signal ?? 'null'}).`));
+      }
     });
   });
 }
@@ -44,13 +73,17 @@ async function main() {
   const tempDir = path.join(os.tmpdir(), `concurso-bndes-import-${process.pid}-${randomUUID()}`);
   const batchPath = path.join(tempDir, 'batch.json');
 
-  await mkdir(tempDir, { recursive: false });
+  await mkdir(tempDir, { recursive: false, mode: 0o700 });
   try {
     const batch = await buildBndes2024ImportBatchFromSnapshot(
       snapshotDir,
       createBndes2024PdftotextExtractor(),
     );
-    await writeFile(batchPath, `${JSON.stringify(batch, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
+    await writeFile(batchPath, `${JSON.stringify(batch, null, 2)}\n`, {
+      encoding: 'utf8',
+      flag: 'wx',
+      mode: 0o600,
+    });
     await runQuestionImporter(batchPath, reportPath);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
