@@ -32,3 +32,12 @@ test('pdftotext extractor validates execution limits before spawning', async () 
     /timeout do pdftotext deve ser inteiro positivo/,
   );
 });
+
+test('pdftotext extractor rejects timeouts above the Node timer range before spawning', async () => {
+  const extractor = createBndes2024PdftotextExtractor({ timeoutMs: 2_147_483_648 });
+
+  await assert.rejects(
+    () => extractor(new Uint8Array([1]), 'exam'),
+    /timeout do pdftotext deve ser <= 2147483647ms/,
+  );
+});
